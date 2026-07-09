@@ -1,0 +1,22 @@
+{
+  "collections": [
+    {
+      "name": "logs",
+      "document": {
+        "id": "string",
+        "date": "string",
+        "driverName": "string",
+        "userId": "string",
+        "vehicleId": "string",
+        "services": "array",
+        "expenses": "array",
+        "observations": "string",
+        "checked": "boolean",
+        "checkedAndre": "boolean",
+        "checkedHudson": "boolean",
+        "editHistory": "array",
+        "timestamp": "string"
+      }
+    }
+  ]
+}
