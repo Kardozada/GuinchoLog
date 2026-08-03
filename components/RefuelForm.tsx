@@ -95,8 +95,8 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!vehicleId || !station || !fuelType || !liters || !pricePerLiter) {
-      alert('Por favor, preencha todos os campos obrigatórios.');
+    if (!vehicleId || !station || !fuelType || !liters || !pricePerLiter || !odometer || !proofImage) {
+      alert('Por favor, preencha todos os campos obrigatórios, incluindo o odômetro e o comprovante.');
       return;
     }
 
@@ -249,9 +249,10 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Odômetro / KM (Opcional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Odômetro / KM *</label>
               <input
                 type="number"
+                required
                 value={odometer}
                 onChange={(e) => setOdometer(e.target.value === '' ? '' : Number(e.target.value))}
                 placeholder="Ex: 154000"
@@ -271,7 +272,7 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user }) => {
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Comprovante de Abastecimento (Opcional mas recomendado)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Comprovante de Abastecimento (Obrigatório)</label>
               
               {!proofImage ? (
                 <div className="flex gap-2">

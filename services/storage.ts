@@ -32,47 +32,33 @@ interface FirestoreErrorInfo {
   }
 }
 
-// --- Leitura otimizada (economia de cota) ---
-// A cota gratuita do Firestore conta CADA documento lido do servidor. Ler a
-// coleção inteira a cada abertura de tela consome milhares de leituras por dia.
-// Estratégia: usar o cache local (já persistido) como fonte primária e só
-// consultar o servidor quando o cache está vazio ou quando passou o "cooldown"
-// desde a última sincronização — cortando drasticamente as leituras faturadas.
-const SYNC_PREFIX = 'guincholog_lastsync_';
-const DEFAULT_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutos
-
-async function getDocsSmart(q: any, cacheKey: string, cooldownMs: number = DEFAULT_COOLDOWN_MS) {
+// Helper to handle offline/quota reads safely with smart caching
+async function getDocsSmart(q: any, cacheKey: string, cooldownMs = 5 * 60 * 1000) {
+  const syncKey = `sync_time_${cacheKey}`;
+  const lastSync = localStorage.getItem(syncKey);
   const now = Date.now();
-  const lastSyncStr = localStorage.getItem(SYNC_PREFIX + cacheKey);
-  const lastSync = lastSyncStr ? Number(lastSyncStr) : 0;
-  const withinCooldown = now - lastSync < cooldownMs;
 
-  // Dentro do cooldown: tenta servir do cache local (0 leituras faturadas).
-  // Escritas locais (setDoc/deleteDoc) já atualizam esse cache, então dados
-  // recém-salvos aparecem mesmo sem ir ao servidor.
-  if (withinCooldown) {
+  if (lastSync && (now - parseInt(lastSync, 10)) < cooldownMs) {
     try {
       const cached = await getDocsFromCache(q);
       if (!cached.empty) {
         return cached;
       }
-      // Cache vazio -> segue para o servidor.
-    } catch (cacheError) {
-      // Cache indisponível -> segue para o servidor.
+    } catch (e) {
+      console.warn("Smart cache read failed or empty, falling back to server.", e);
     }
   }
 
-  // Leitura do servidor (também reabastece o cache local).
+  const timeoutPromise = new Promise<never>((_, reject) => 
+    setTimeout(() => reject(new Error("Timeout")), 15000)
+  );
+  
   try {
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Timeout")), 15000)
-    );
-    const fresh = await Promise.race([getDocs(q), timeoutPromise]);
-    localStorage.setItem(SYNC_PREFIX + cacheKey, String(now));
-    return fresh;
+    const snapshot = await Promise.race([getDocs(q), timeoutPromise]) as any;
+    localStorage.setItem(syncKey, now.toString());
+    return snapshot;
   } catch (error) {
-    // Servidor falhou (offline ou cota): cai no cache como último recurso.
-    console.warn("Read failed (quota or network), falling back to cache.", error);
+    console.warn("Read from server failed, falling back to cache.", error);
     try {
       return await getDocsFromCache(q);
     } catch (cacheError) {
@@ -142,7 +128,7 @@ export const deleteLog = async (logId: string): Promise<void> => {
 export const fetchLogsFromFirestore = async (): Promise<DailyLog[]> => {
   try {
     const q = query(collection(db, LOGS_COLLECTION));
-
+    
     const querySnapshot = await getDocsSmart(q, 'logs_all');
     const logs: DailyLog[] = [];
     querySnapshot.forEach((doc) => {
@@ -162,7 +148,7 @@ export const getAllLogs = async (): Promise<DailyLog[]> => {
 export const getLogsByUser = async (userId: string, driverName?: string): Promise<DailyLog[]> => {
   try {
     const q = query(collection(db, LOGS_COLLECTION), where("userId", "==", userId));
-
+    
     const querySnapshot = await getDocsSmart(q, `logs_user_${userId}`);
     const logs: DailyLog[] = [];
     querySnapshot.forEach((doc) => {
@@ -216,7 +202,7 @@ export const saveFuelRecord = async (record: FuelRecord): Promise<void> => {
 export const fetchFuelRecords = async (): Promise<FuelRecord[]> => {
   try {
     const q = query(collection(db, FUELS_COLLECTION));
-
+    
     const querySnapshot = await getDocsSmart(q, 'fuels_all');
     const records: FuelRecord[] = [];
     querySnapshot.forEach((doc) => {
@@ -237,7 +223,7 @@ export const fetchFuelRecords = async (): Promise<FuelRecord[]> => {
 export const getFuelRecordsByUser = async (userId: string): Promise<FuelRecord[]> => {
   try {
     const q = query(collection(db, FUELS_COLLECTION), where("userId", "==", userId));
-
+    
     const querySnapshot = await getDocsSmart(q, `fuels_user_${userId}`);
     const records: FuelRecord[] = [];
     querySnapshot.forEach((doc) => {
@@ -277,7 +263,7 @@ export const saveMaintenanceRecord = async (record: MaintenanceRecord): Promise<
 export const fetchMaintenanceRecords = async (): Promise<MaintenanceRecord[]> => {
   try {
     const q = query(collection(db, MAINTENANCE_COLLECTION));
-
+    
     const querySnapshot = await getDocsSmart(q, 'maint_all');
     const records: MaintenanceRecord[] = [];
     querySnapshot.forEach((doc) => {
