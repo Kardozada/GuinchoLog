@@ -86,7 +86,7 @@ const AdminRefuel: React.FC = () => {
       }
     });
 
-    return Object.entries(stats).map(([vehicleId, data]) => {
+    const result = Object.entries(stats).map(([vehicleId, data]) => {
       const vehicle = VEHICLES.find(v => v.id === vehicleId);
       
       // Calculate average consumption
@@ -114,7 +114,17 @@ const AdminRefuel: React.FC = () => {
         totalSpent: data.totalSpent,
         avgConsumption
       };
-    }).sort((a, b) => a.vehicleName.localeCompare(b.vehicleName));
+    });
+
+    return result.sort((a, b) => {
+      const indexA = VEHICLES.findIndex(v => v.id === a.vehicleId);
+      const indexB = VEHICLES.findIndex(v => v.id === b.vehicleId);
+      
+      if (indexA === -1 && indexB === -1) return a.vehicleName.localeCompare(b.vehicleName);
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      return indexA - indexB;
+    });
   };
 
   const stats = getVehicleStats();

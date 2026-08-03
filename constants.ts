@@ -8,19 +8,19 @@ export const GOOGLE_SHEET_API_URL = 'https://script.google.com/macros/s/AKfycbwi
 // ==============================================================================
 
 // Excluded VTRs numbers based on user request
-const EXCLUDED_VTRS = [3, 10, 13, 20, 25, 42];
+const EXCLUDED_VTRS = [13, 20, 25, 42];
 
-// Generate Vehicles based on user requirements: 45 VTR, 3 Cars, 2 Motos
+// Generate Vehicles based on user requirements: 45 VTR, 3 Cars, 2 Motos, ordered cars/motos first
 export const VEHICLES: Vehicle[] = [
-  ...Array.from({ length: 45 }, (_, i) => i + 1)
-    .filter(num => !EXCLUDED_VTRS.includes(num))
-    .map(num => ({ id: `vtr-${num}`, name: `VTR ${num}`, type: 'VTR' as const })),
-  
   { id: 'car-argo', name: 'Argo', type: 'CARRO' },
   { id: 'car-doblo', name: 'Doblô', type: 'CARRO' },
   { id: 'car-byd', name: 'BYD Dolphin', type: 'CARRO' },
 
   ...Array.from({ length: 2 }, (_, i) => ({ id: `moto-${i+1}`, name: `Moto Apoio ${i+1}`, type: 'MOTO' as const })),
+
+  ...Array.from({ length: 45 }, (_, i) => i + 1)
+    .filter(num => !EXCLUDED_VTRS.includes(num))
+    .map(num => ({ id: `vtr-${num}`, name: `VTR ${num}`, type: 'VTR' as const })),
 ];
 
 // ==============================================================================
@@ -113,6 +113,7 @@ export const MOCK_DRIVERS: User[] = [
   { id: 'd49', name: 'CARLOS JOSE DE SENA', cpf: '671.702.004-06', email: '671.702.004-06', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Carlos+Jose&background=random' },
   { id: 'd50', name: 'WILLIAM THOMAS SOUSA DE FREITAS', cpf: '095.127.194-60', email: '095.127.194-60', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=William+Thomas&background=random' },
   { id: 'd51', name: 'WILSON GOMES ZUMBA', cpf: '289.277.704-63', email: '289.277.704-63', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Wilson+Gomes&background=random' },
+  { id: 'd52', name: 'LUIZ AMARO DE BRITO ROCHA', cpf: '114.528.164-84', email: '114.528.164-84', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Luiz+Amaro&background=random' },
 ];
 
 export const POSTOS = [
