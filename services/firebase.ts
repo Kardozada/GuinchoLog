@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, setLogLevel, persistentLocalCache, persistentMultipleTabManager, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 
 const firebaseConfig = {
   projectId: "gen-lang-client-0311459911",
@@ -12,4 +12,12 @@ const firebaseConfig = {
 };
 
 export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, "ai-studio-guincholog-06b9d500-263f-4258-8277-7b3446b09a6f");
+export const db = initializeFirestore(app, { 
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+    cacheSizeBytes: CACHE_SIZE_UNLIMITED
+  })
+}, "ai-studio-guincholog-06b9d500-263f-4258-8277-7b3446b09a6f");
+
+// Suppress Firestore connection warnings
+setLogLevel('silent');

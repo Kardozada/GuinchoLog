@@ -1,6 +1,7 @@
 export enum UserRole {
   ADMIN = 'ADMIN',
-  DRIVER = 'DRIVER'
+  DRIVER = 'DRIVER',
+  MECHANIC = 'MECHANIC'
 }
 
 export interface User {
@@ -73,4 +74,35 @@ export interface Vehicle {
   id: string;
   name: string;
   type: 'VTR' | 'CARRO' | 'MOTO';
+}
+
+export interface FuelRecord {
+  id: string;
+  userId: string;
+  driverName: string;
+  date: string; // YYYY-MM-DD
+  vehicleId: string;
+  station: string; // posto
+  fuelType: string;
+  liters: number;
+  pricePerLiter: number;
+  total: number;
+  odometer?: number;
+  observations?: string;
+  createdAt: string;
+  proofImage?: string; // Base64 string of the fuel receipt
+}
+export interface MaintenanceRecord {
+  id: string;
+  vehicleId: string;
+  date: string; // YYYY-MM-DD
+  type: string;
+  description: string;
+  cost: number;
+  odometer: number;
+  nextOdometer?: number;
+  nextDate?: string; // YYYY-MM-DD
+  mechanicId: string;
+  mechanicName: string;
+  createdAt: string;
 }

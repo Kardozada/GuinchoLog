@@ -8,7 +8,7 @@ export const GOOGLE_SHEET_API_URL = 'https://script.google.com/macros/s/AKfycbwi
 // ==============================================================================
 
 // Excluded VTRs numbers based on user request
-const EXCLUDED_VTRS = [3, 10, 12, 13, 20, 25, 42];
+const EXCLUDED_VTRS = [3, 10, 13, 20, 25, 42];
 
 // Generate Vehicles based on user requirements: 45 VTR, 3 Cars, 2 Motos
 export const VEHICLES: Vehicle[] = [
@@ -70,7 +70,7 @@ export const MOCK_DRIVERS: User[] = [
   { id: 'd1', name: 'ADRIANO BARBOSA DA SILVA', cpf: '092.511.684-07', email: 'Adrianobabosa622@gmail.com', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Adriano+Barbosa&background=random' },
   { id: 'd4', name: 'ALEF DA SILVA APOLINARIO', cpf: '085.985.984-37', email: 'alef.apolinarioo@hotmail.com', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Alef+Silva&background=random' },
   { id: 'd5', name: 'ALEXSANDRO BARBOSA DA SILVA', cpf: '069.646.034-33', email: 'AlexsandroBarbosadasilva953@gmail.com', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Alexsandro+Barbosa&background=random' },
-  { id: 'd6', name: 'ALLAN JUDSON DA SILVA MELO', cpf: '706.755.944-80', email: 'allanjudson32@gmail.com', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Allan+Judson&background=random' },
+  { id: 'd6', name: 'ALLAN JUDSON DA SILVA DE MELO', cpf: '706.755.944-80', email: 'allanjudson32@gmail.com', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Allan+Judson&background=random' },
   { id: 'd8', name: 'ANDERSON KLEYTON DA SILVA', cpf: '071.678.294-47', email: 'silva_kleyton@hotmail.com', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Anderson+Kleyton&background=random' },
   { id: 'd9', name: 'ANTONIO CARLOS BEZERRA CIRINO', cpf: '500.649.084-53', email: 'antonio.27.cbc@gmail.com', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Antonio+Carlos&background=random' },
   { id: 'd10', name: 'CLAUDIO AQUINO DA SILVA', cpf: '008.299.424-24', email: 'claudio4claudioju@gmail.com', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Claudio+Aquino&background=random' },
@@ -107,6 +107,70 @@ export const MOCK_DRIVERS: User[] = [
   { id: 'd43', name: 'TIAGO KLEBER DA CRUZ SILVA', cpf: '058.348.524-32', email: 'bbezerra173@gmail.com', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Tiago+Kleber&background=random' },
   { id: 'd44', name: 'MATHEUS HENRIQUE DE ARAUJO RODRIGUES', cpf: '096.677.434-54', email: '', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Matheus+Henrique&background=random' },
   { id: 'd45', name: 'RAFAEL SANTOS DE MELO', cpf: '038.035.054-88', email: '', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Rafael+Santos&background=random' },
+  { id: 'd46', name: 'DEUSDEDITE APARECIDO DE MORAES', cpf: '166.040.708-75', email: '166.040.708-75', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Deusdedite+Aparecido&background=random' },
+  { id: 'd47', name: 'CACIO LUAN DA SILVA VILELA', cpf: '701.684.544-32', email: '701.684.544-32', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Cacio+Luan&background=random' },
+  { id: 'd48', name: 'FABIO CARLOS DA SILVA DOMINGOS', cpf: '119.776.384-81', email: '119.776.384-81', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Fabio+Carlos&background=random' },
+  { id: 'd49', name: 'CARLOS JOSE DE SENA', cpf: '671.702.004-06', email: '671.702.004-06', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Carlos+Jose&background=random' },
+  { id: 'd50', name: 'WILLIAM THOMAS SOUSA DE FREITAS', cpf: '095.127.194-60', email: '095.127.194-60', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=William+Thomas&background=random' },
+  { id: 'd51', name: 'WILSON GOMES ZUMBA', cpf: '289.277.704-63', email: '289.277.704-63', role: UserRole.DRIVER, avatarUrl: 'https://ui-avatars.com/api/?name=Wilson+Gomes&background=random' },
+];
+
+export const POSTOS = [
+  'POSTO BASE ALEX REBOQUE',
+  'POSTO CONFIANÇA - SGA',
+  'POSTO COOPACABANA',
+  'POSTO DIVERSOS-OUTROS',
+  'POSTO DM ANGICOS',
+  'POSTO DM ASSU',
+  'POSTO DM SOUZA',
+  'POSTO NEOPOLIS',
+  'POSTO PINHEIRO PQ IND',
+  'POSTO PINHEIRO SATÉLITE',
+  'POSTO SPX XAVANTES',
+  'POSTO TANQUE CHEIO',
+  'POSTO XAVANTES'
+];
+
+export const TIPOS_COMBUSTIVEL = [
+  'ADITIVO - ARLA 32',
+  'DIESEL ADITIVADO',
+  'DIESEL S10',
+  'DIESEL S10 ADITIVADO',
+  'DIESEL S50',
+  'DIESEL S500',
+  'ETANOL',
+  'ETANOL ADITIVADA',
+  'GASOLINA',
+  'GASOLINA ADITIVADA',
+  'GNV'
 ];
 
 export const MOCK_HISTORY_LOGS = [];
+export const MOCK_MECHANICS: User[] = [
+  { id: 'mec-1', name: 'SILVANO DA SILVA NETO', email: 'silvano@guincholog.com', cpf: '068.057.264-33', role: UserRole.MECHANIC, avatarUrl: 'https://ui-avatars.com/api/?name=Silvano+Silva&background=0D8ABC&color=fff' }
+];
+
+export const TIPOS_MANUTENCAO = [
+  'PREVENTIVA',
+  'CORRETIVA',
+  'TROCA DE ÓLEO',
+  'FILTROS',
+  'FREIOS',
+  'PNEUS',
+  'SUSPENSÃO',
+  'PARTE ELÉTRICA',
+  'MOTOR',
+  'OUTROS'
+];
+
+export const getLocalDate = () => {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().split('T')[0];
+};
+
+export const getLocalDateFromDate = (dateObj: Date) => {
+  const date = new Date(dateObj.getTime());
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().split('T')[0];
+};

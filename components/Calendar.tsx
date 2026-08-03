@@ -212,7 +212,7 @@ const Calendar: React.FC<CalendarProps> = ({ logs }) => {
                   </div>
                   
                   <div className="grid grid-cols-1 gap-4">
-                    {log.services.map((service, sIdx) => (
+                    {(log.services || []).map((service, sIdx) => (
                       <div key={service.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
@@ -248,11 +248,11 @@ const Calendar: React.FC<CalendarProps> = ({ logs }) => {
                     ))}
                   </div>
 
-                  {log.expenses.length > 0 && (
+                  {log.expenses && log.expenses.length > 0 && (
                     <div className="mt-4">
                       <h5 className="text-sm font-bold text-gray-700 mb-2">Despesas</h5>
                       <div className="space-y-1">
-                        {log.expenses.map(expense => (
+                        {(log.expenses || []).map(expense => (
                           <div key={expense.id} className="flex justify-between text-sm bg-red-50 p-2 rounded border border-red-100">
                             <span className="text-red-700">{expense.description}</span>
                             <span className="font-bold text-red-700">R$ {expense.value.toFixed(2)}</span>

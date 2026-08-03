@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { getAllLogs, updateLog, getCurrentUser, deleteLog } from '../services/storage';
 import { analyzeDailyLogs } from '../services/geminiService';
 import { DailyLog, ServiceItem, ExpenseItem, PaymentMethod, EditHistoryEntry } from '../types';
-import { MOCK_DRIVERS, VEHICLES } from '../constants';
+import { MOCK_DRIVERS, VEHICLES, getLocalDate, getLocalDateFromDate } from '../constants';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Bot, FileText, Search, TrendingUp, RefreshCw, AlertTriangle, X, Copy, Check, Settings, Calendar, Users, ChevronDown, ChevronRight, MapPin, Clock, Truck, DollarSign, Image as ImageIcon, LayoutDashboard, Pencil, History, Save, Trash2, Plus, Square, CheckSquare, Stamp } from 'lucide-react';
+import { Bot, FileText, Search, TrendingUp, RefreshCw, AlertTriangle, X, Copy, Check, Settings, Calendar, Users, ChevronDown, ChevronRight, MapPin, Clock, Truck, DollarSign, Image as ImageIcon, LayoutDashboard, Pencil, History, Save, Trash2, Plus, Square, CheckSquare, Stamp, Droplet, Wrench } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import AdminRefuel from './AdminRefuel';
+import AdminMaintenance from './AdminMaintenance';
 
 // --- GAS SCRIPT ATUALIZADO (Suporte a Update/Upsert) ---
 const GAS_SCRIPT_CODE = `// =======================================================
@@ -100,7 +102,7 @@ function setup() {
   }
 }`;
 
-type TabView = 'overview' | 'dates' | 'drivers';
+type TabView = 'overview' | 'dates' | 'drivers' | 'refuel' | 'maintenance';
 
 const AdminDashboard: React.FC = () => {
   const [logs, setLogs] = useState<DailyLog[]>([]);
@@ -191,12 +193,12 @@ const AdminDashboard: React.FC = () => {
         if (log.submittedAt) {
           const submittedParsed = new Date(log.submittedAt);
           if (!isNaN(submittedParsed.getTime())) {
-             formattedDate = submittedParsed.toISOString().split('T')[0];
+             formattedDate = getLocalDateFromDate(submittedParsed);
           } else {
-             formattedDate = new Date().toISOString().split('T')[0];
+             formattedDate = getLocalDate();
           }
         } else {
-          formattedDate = new Date().toISOString().split('T')[0];
+          formattedDate = getLocalDate();
         }
       }
 
@@ -466,7 +468,7 @@ const AdminDashboard: React.FC = () => {
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {services.map((s, idx) => (
+          {(services || []).map((s, idx) => (
             <tr key={idx} className="hover:bg-gray-50">
               <td className="px-3 py-2 whitespace-nowrap text-gray-600">
                 <div className="flex flex-col">
@@ -505,7 +507,7 @@ const AdminDashboard: React.FC = () => {
               </td>
             </tr>
           ))}
-          {services.length === 0 && (
+          {(!services || services.length === 0) && (
             <tr><td colSpan={7} className="text-center py-4 text-gray-400">Nenhum serviço neste relatório.</td></tr>
           )}
         </tbody>
@@ -547,7 +549,7 @@ const AdminDashboard: React.FC = () => {
             <span className="text-gray-500 block text-xs uppercase font-bold">Despesas</span>
             <p className="text-red-600 font-medium mt-1">Total: R$ {log.totalExpenses.toFixed(2)}</p>
             <ul className="text-xs text-gray-400 mt-1">
-              {log.expenses.map((e, i) => <li key={i}>• {e.description}: R$ {e.value}</li>)}
+              {(log.expenses || []).map((e, i) => <li key={i}>• {e.description}: R$ {e.value}</li>)}
             </ul>
           </div>
           <div className="bg-white p-3 rounded border border-gray-100">
@@ -579,7 +581,7 @@ const AdminDashboard: React.FC = () => {
   const renderOverview = () => {
     // KPI Data Calculation
     const totalRevenue = logs.reduce((acc, l) => acc + l.totalInvoiced, 0);
-    const totalServices = logs.reduce((acc, l) => acc + l.services.length, 0);
+    const totalServices = logs.reduce((acc, l) => acc + (l.services?.length || 0), 0);
     const activeDrivers = new Set(logs.map(l => l.userId)).size;
     
     // Chart Data
@@ -712,7 +714,7 @@ const AdminDashboard: React.FC = () => {
                             return Object.keys(logsByDriver).sort().map(driverName => {
                               const driverLogs = logsByDriver[driverName];
                               const driverDebt = driverLogs.reduce((acc, l) => acc + l.totalLiquidCash, 0);
-                              const driverServicesCount = driverLogs.reduce((acc, l) => acc + l.services.length, 0);
+                              const driverServicesCount = driverLogs.reduce((acc, l) => acc + (l.services?.length || 0), 0);
                               const isCheckedHudson = driverLogs.every(l => l.checkedHudson);
                               const isCheckedAndre = driverLogs.every(l => l.checkedAndre);
                               const expandKey = `${day}-${driverName}`;
@@ -938,7 +940,7 @@ const AdminDashboard: React.FC = () => {
                      Object.keys(groupedByDate).sort((a,b) => b.localeCompare(a)).map(date => {
                         const dayLogs = groupedByDate[date];
                         const dayDebt = dayLogs.reduce((acc, l) => acc + l.totalLiquidCash, 0);
-                        const dayServicesCount = dayLogs.reduce((acc, l) => acc + l.services.length, 0);
+                        const dayServicesCount = dayLogs.reduce((acc, l) => acc + (l.services?.length || 0), 0);
                         const isCheckedHudson = dayLogs.every(l => l.checkedHudson);
                         const isCheckedAndre = dayLogs.every(l => l.checkedAndre);
                         const isDateExpanded = expandedDriverDates.has(date);
@@ -1064,6 +1066,20 @@ const AdminDashboard: React.FC = () => {
           >
             Motoristas
           </button>
+          <button 
+            onClick={() => setActiveTab('refuel')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'refuel' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            <Droplet className="w-4 h-4" />
+            Abastecimento
+          </button>
+          <button 
+            onClick={() => setActiveTab('maintenance')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'maintenance' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            <Wrench className="w-4 h-4" />
+            Manutenção
+          </button>
        </div>
 
        {/* Content */}
@@ -1071,6 +1087,8 @@ const AdminDashboard: React.FC = () => {
           {activeTab === 'overview' && renderOverview()}
           {activeTab === 'dates' && renderByDate()}
           {activeTab === 'drivers' && renderDrivers()}
+          {activeTab === 'refuel' && <AdminRefuel />}
+          {activeTab === 'maintenance' && <AdminMaintenance />}
        </div>
 
        {/* Modals */}
@@ -1158,7 +1176,7 @@ const AdminDashboard: React.FC = () => {
                   </div>
                   
                   <div className="space-y-4">
-                    {editingLog.services.map((service, index) => (
+                    {(editingLog.services || []).map((service, index) => (
                       <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4 relative">
                         <button onClick={() => removeServiceInEdit(index)} className="absolute top-2 right-2 text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4"/></button>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1196,7 +1214,7 @@ const AdminDashboard: React.FC = () => {
                     <h4 className="text-lg font-bold text-gray-800">Despesas</h4>
                     <button type="button" onClick={addExpenseInEdit} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"><Plus className="w-4 h-4"/> Adicionar Despesa</button>
                   </div>
-                  {editingLog.expenses.map((expense, index) => (
+                  {(editingLog.expenses || []).map((expense, index) => (
                     <div key={index} className="flex gap-2 mb-2 items-center">
                        <input 
                         type="text" 

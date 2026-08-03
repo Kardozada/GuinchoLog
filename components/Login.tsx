@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, UserRole } from '../types';
-import { MOCK_ADMINS, MOCK_DRIVERS } from '../constants';
+import { MOCK_ADMINS, MOCK_DRIVERS, MOCK_MECHANICS } from '../constants';
 import { setCurrentUser } from '../services/storage';
 import { Lock, User as UserIcon, LogIn } from 'lucide-react';
 
@@ -11,7 +11,7 @@ interface LoginProps {
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [identifier, setIdentifier] = useState(''); // Can be Email or CPF
   const [password, setPassword] = useState('');
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.DRIVER);
   const [error, setError] = useState('');
 
   const handleLogin = (e: React.FormEvent) => {
@@ -29,46 +29,34 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       return password === expectedPassword;
     };
 
-    if (isAdmin) {
-      // Admin Login Check
-      const admin = MOCK_ADMINS.find(a => 
-        a.email.toLowerCase() === cleanIdentifier || 
-        (a.cpf && a.cpf.replace(/\D/g, '') === cleanCPF)
-      );
-
-      if (admin) {
-        if (validatePassword(admin)) {
-          setCurrentUser(admin);
-          onLogin(admin);
-        } else {
-          setError('Senha incorreta.');
-        }
-      } else {
-        setError('Administrador não encontrado. Verifique seu CPF.');
-      }
-      return;
+    let userPool: User[] = [];
+    if (selectedRole === UserRole.ADMIN) {
+      userPool = MOCK_ADMINS;
+    } else if (selectedRole === UserRole.DRIVER) {
+      userPool = MOCK_DRIVERS;
+    } else if (selectedRole === UserRole.MECHANIC) {
+      userPool = MOCK_MECHANICS;
     }
 
-    // Driver Login Check
-    const driver = MOCK_DRIVERS.find(d => 
-      d.email.toLowerCase() === cleanIdentifier || 
-      (d.cpf && d.cpf.replace(/\D/g, '') === cleanCPF)
+    const user = userPool.find(u => 
+      u.email.toLowerCase() === cleanIdentifier || 
+      (u.cpf && u.cpf.replace(/\D/g, '') === cleanCPF)
     );
 
-    if (driver) {
-      if (validatePassword(driver)) {
-        setCurrentUser(driver);
-        onLogin(driver);
+    if (user) {
+      if (validatePassword(user)) {
+        setCurrentUser(user);
+        onLogin(user);
       } else {
         setError('Senha incorreta.');
       }
     } else {
-      setError('Motorista não encontrado. Verifique seu CPF.');
+      setError('Usuário não encontrado. Verifique seu CPF.');
     }
   };
 
-  const toggleRole = (admin: boolean) => {
-    setIsAdmin(admin);
+  const toggleRole = (role: UserRole) => {
+    setSelectedRole(role);
     setError('');
     setIdentifier('');
     setPassword('');
@@ -79,7 +67,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       {/* Background Decor */}
       <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1605218427306-022ba8c69a38?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-center opacity-20"></div>
       <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/90 to-transparent"></div>
-
+      
       <div className="relative z-10 w-full max-w-md p-8 bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">GuinchoLog</h1>
@@ -88,25 +76,32 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
-            <div className="flex justify-center space-x-4 mb-6">
+            <div className="flex flex-wrap justify-center gap-2 mb-6">
                <button
                  type="button"
-                 onClick={() => toggleRole(false)}
-                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${!isAdmin ? 'bg-indigo-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
+                 onClick={() => toggleRole(UserRole.DRIVER)}
+                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectedRole === UserRole.DRIVER ? 'bg-indigo-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
                >
                  Sou Motorista
                </button>
                <button
                  type="button"
-                 onClick={() => toggleRole(true)}
-                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isAdmin ? 'bg-indigo-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
+                 onClick={() => toggleRole(UserRole.MECHANIC)}
+                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectedRole === UserRole.MECHANIC ? 'bg-indigo-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
+               >
+                 Sou Mecânico
+               </button>
+               <button
+                 type="button"
+                 onClick={() => toggleRole(UserRole.ADMIN)}
+                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectedRole === UserRole.ADMIN ? 'bg-indigo-600 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}
                >
                  Sou Administrador
                </button>
             </div>
 
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              {isAdmin ? 'CPF do Admin' : 'CPF do Motorista'}
+              CPF do {selectedRole === UserRole.ADMIN ? 'Admin' : selectedRole === UserRole.MECHANIC ? 'Mecânico' : 'Motorista'}
             </label>
             <div className="relative mb-4">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -123,7 +118,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </div>
 
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Senha
+              Senha (6 primeiros dígitos do CPF)
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -152,12 +147,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-indigo-500/30 transform hover:-translate-y-0.5"
           >
             <LogIn className="w-5 h-5" />
-            {isAdmin ? 'Entrar no Painel' : 'Iniciar Turno'}
+            Entrar
           </button>
         </form>
         
         <p className="mt-6 text-center text-gray-400 text-xs">
-          Seu acesso deve estar cadastrado na planilha central.
+          Seu acesso deve estar cadastrado na base de usuários.
         </p>
       </div>
     </div>

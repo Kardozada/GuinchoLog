@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, DailyLog, ServiceItem, ExpenseItem, PaymentMethod } from '../types';
-import { VEHICLES } from '../constants';
+import { VEHICLES, getLocalDate } from '../constants';
 import { saveLog, getLogsByUser } from '../services/storage';
 import { Plus, Trash2, Save, Truck, DollarSign, Clock, MapPin, Loader2, CheckCircle, Camera, Image as ImageIcon, X, FileText } from 'lucide-react';
 import Calendar from './Calendar';
@@ -15,7 +15,7 @@ interface DriverFormProps {
 }
 
 const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getLocalDate());
   const [selectedVehicle, setSelectedVehicle] = useState('');
   const [observations, setObservations] = useState('');
   
@@ -104,12 +104,16 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
       });
 
       setUserLogs(logs);
-      
+    };
+    loadLogs();
+  }, [user.id, user.name, showSuccessModal]);
+
+  useEffect(() => {
       // Check if there is a log for the selected date AND vehicle
-      const logForDateAndVehicle = logs.find(l => l.date === date && (selectedVehicle ? l.vehicleId === selectedVehicle : true));
+      const logForDateAndVehicle = userLogs.find(l => l.date === date && (selectedVehicle ? l.vehicleId === selectedVehicle : true));
       
       // If we are just starting and no vehicle is selected, try to find any log for that date to auto-select
-      const anyLogForDate = logs.find(l => l.date === date);
+      const anyLogForDate = userLogs.find(l => l.date === date);
       const logToLoad = logForDateAndVehicle || (selectedVehicle === '' ? anyLogForDate : null);
       
       if (logToLoad) {
@@ -118,11 +122,11 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
         if (!selectedVehicle || logToLoad.vehicleId === selectedVehicle) {
           setSelectedVehicle(logToLoad.vehicleId);
         }
-        setServices(logToLoad.services);
-        setExpenses(logToLoad.expenses);
+        setServices(logToLoad.services || []);
+        setExpenses(logToLoad.expenses || []);
         setObservations(logToLoad.observations);
-        setSavedServiceIds(new Set(logToLoad.services.map(s => s.id)));
-        setSavedExpenseIds(new Set(logToLoad.expenses.map(e => e.id)));
+        setSavedServiceIds(new Set((logToLoad.services || []).map(s => s.id)));
+        setSavedExpenseIds(new Set((logToLoad.expenses || []).map(e => e.id)));
       } else {
         // No log found for this combination.
         // If we were previously looking at a SAVED log, we should clear the form to start fresh.
@@ -137,10 +141,7 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
           setSavedExpenseIds(new Set());
         }
       }
-    };
-
-    loadLogs();
-  }, [user.id, user.name, date, selectedVehicle, showSuccessModal]);
+  }, [date, selectedVehicle, userLogs, existingLogId]);
 
   // Calculations
   const totalInvoiced = services.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
@@ -165,7 +166,7 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
         img.src = event.target?.result as string;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800; // Resize to max 800px width
+          const MAX_WIDTH = 600; // Resize to max 600px width
           const scaleSize = MAX_WIDTH / img.width;
           canvas.width = MAX_WIDTH;
           canvas.height = img.height * scaleSize;
@@ -173,8 +174,8 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
           
-          // Compress to JPEG with 0.6 quality
-          resolve(canvas.toDataURL('image/jpeg', 0.6));
+          // Compress to JPEG with 0.5 quality
+          resolve(canvas.toDataURL('image/jpeg', 0.5));
         };
         img.onerror = (err) => reject(err);
       };

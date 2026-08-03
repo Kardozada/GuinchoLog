@@ -18,7 +18,7 @@ export const analyzeDailyLogs = async (logs: DailyLog[]): Promise<string> => {
     totalRevenue: log.totalInvoiced,
     kmDriven: log.kmEnd - log.kmStart,
     observations: log.observations,
-    serviceCount: log.services.length
+    serviceCount: log.services?.length || 0
   }));
 
   const prompt = `
