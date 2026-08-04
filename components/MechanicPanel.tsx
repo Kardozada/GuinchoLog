@@ -260,10 +260,14 @@ const MechanicPanel: React.FC<MechanicPanelProps> = ({ user }) => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Odômetro / KM *</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 required
                 value={odometer}
-                onChange={(e) => setOdometer(e.target.value === '' ? '' : Number(e.target.value))}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '');
+                  setOdometer(val === '' ? '' : Number(val));
+                }}
                 placeholder="Ex: 154000"
                 className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
               />
@@ -279,9 +283,13 @@ const MechanicPanel: React.FC<MechanicPanelProps> = ({ user }) => {
                 </span>
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 value={nextOdometer}
-                onChange={(e) => setNextOdometer(e.target.value === '' ? '' : Number(e.target.value))}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '');
+                  setNextOdometer(val === '' ? '' : Number(val));
+                }}
                 placeholder="Opcional"
                 className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
               />

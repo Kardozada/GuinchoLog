@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FuelRecord } from '../types';
 import { VEHICLES, POSTOS, TIPOS_COMBUSTIVEL } from '../constants';
 import { fetchFuelRecords, deleteFuelRecord, saveFuelRecord } from '../services/storage';
-import { Droplet, Calendar, Loader2, Edit2, Trash2, User as UserIcon, X, Search, BarChart3, Save, Image as ImageIcon } from 'lucide-react';
+import { Droplet, Calendar, Loader2, Edit2, Trash2, User as UserIcon, X, Search, BarChart3, Save, Image as ImageIcon, ChevronUp, ChevronDown } from 'lucide-react';
 
 const AdminRefuel: React.FC = () => {
   const [records, setRecords] = useState<FuelRecord[]>([]);
@@ -17,6 +17,7 @@ const AdminRefuel: React.FC = () => {
   const [editingRecord, setEditingRecord] = useState<FuelRecord | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [showConsumption, setShowConsumption] = useState(true);
 
   useEffect(() => {
     loadRecords();
@@ -133,39 +134,51 @@ const AdminRefuel: React.FC = () => {
     <div className="space-y-6">
       {/* Resumo / Relatório */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-4 sm:p-6 bg-indigo-50 border-b border-indigo-100 flex items-center gap-3">
-          <BarChart3 className="w-6 h-6 text-indigo-600" />
-          <h2 className="text-lg font-bold text-gray-900">Média de Consumo por Caminhão</h2>
+        <div className="p-4 sm:p-6 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <BarChart3 className="w-6 h-6 text-indigo-600" />
+            <h2 className="text-lg font-bold text-gray-900">Média de Consumo por Caminhão</h2>
+          </div>
+          <button 
+            onClick={() => setShowConsumption(!showConsumption)}
+            className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors"
+            title={showConsumption ? "Ocultar" : "Mostrar"}
+          >
+            {showConsumption ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </button>
         </div>
-        <div className="p-4 sm:p-6">
-          {stats.length === 0 ? (
-            <p className="text-gray-500 text-sm">Nenhum dado para exibir com os filtros atuais.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {stats.map(stat => (
-                <div key={stat.vehicleId} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <div className="font-bold text-gray-900 mb-2 border-b border-gray-200 pb-2">{stat.vehicleName}</div>
-                  <div className="space-y-1 text-sm text-gray-700">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Média:</span>
-                      <span className="font-semibold">{stat.avgConsumption} {stat.avgConsumption !== 'Dados insuficientes' && 'km/l'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Total Litros:</span>
-                      <span className="font-semibold">{stat.totalLiters.toFixed(2)} L</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Gasto Total:</span>
-                      <span className="font-semibold text-red-600">
-                        {stat.totalSpent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </span>
+        
+        {showConsumption && (
+          <div className="p-4 sm:p-6">
+            {stats.length === 0 ? (
+              <p className="text-gray-500 text-sm">Nenhum dado para exibir com os filtros atuais.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {stats.map(stat => (
+                  <div key={stat.vehicleId} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="font-bold text-gray-900 mb-2 border-b border-gray-200 pb-2">{stat.vehicleName}</div>
+                    <div className="space-y-1 text-sm text-gray-700">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Média:</span>
+                        <span className="font-semibold">{stat.avgConsumption} {stat.avgConsumption !== 'Dados insuficientes' && 'km/l'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Total Litros:</span>
+                        <span className="font-semibold">{stat.totalLiters.toFixed(2)} L</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Gasto Total:</span>
+                        <span className="font-semibold text-red-600">
+                          {stat.totalSpent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Filtros */}
@@ -401,9 +414,13 @@ const AdminRefuel: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Odômetro</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     value={editingRecord.odometer || ''}
-                    onChange={(e) => setEditingRecord({...editingRecord, odometer: e.target.value ? Number(e.target.value) : undefined})}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      setEditingRecord({...editingRecord, odometer: val ? Number(val) : undefined})
+                    }}
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
