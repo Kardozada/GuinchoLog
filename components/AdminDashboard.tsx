@@ -654,6 +654,11 @@ const AdminDashboard: React.FC = () => {
   };
 
   const renderByDate = () => {
+    const isHudson = currentUser?.name?.toLowerCase().includes('hudson');
+    const isAndre = currentUser?.name?.toLowerCase().includes('andre');
+    const isMatheus = currentUser?.name?.toLowerCase().includes('matheus');
+    const isSuperAdmin = isMatheus || (!isHudson && !isAndre && currentUser?.role === 'ADMIN');
+
     const groupedLogs = getLogsByMonth();
     const months = Object.keys(groupedLogs).sort((a, b) => b.localeCompare(a));
 
@@ -731,20 +736,22 @@ const AdminDashboard: React.FC = () => {
                                           <button 
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              toggleLogChecked(driverLogs.map(l => l.id), 'checkedHudson');
+                                              if (isHudson || isSuperAdmin) toggleLogChecked(driverLogs.map(l => l.id), 'checkedHudson');
                                             }}
                                             title="Conferência Hudson (Serviços)"
-                                            className={`p-1 rounded transition-colors ${isCheckedHudson ? 'text-blue-600' : 'text-gray-300 hover:text-gray-400'}`}
+                                            className={`p-1 rounded transition-colors ${isCheckedHudson ? 'text-blue-600' : 'text-gray-300'} ${isHudson || isSuperAdmin ? 'hover:text-gray-400' : 'cursor-not-allowed opacity-50'}`}
+                                            disabled={!isHudson && !isSuperAdmin}
                                           >
                                             <Stamp className="w-5 h-5" />
                                           </button>
                                           <button 
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              toggleLogChecked(driverLogs.map(l => l.id), 'checkedAndre');
+                                              if (isAndre || isSuperAdmin) toggleLogChecked(driverLogs.map(l => l.id), 'checkedAndre');
                                             }}
                                             title="Conferência André (Pagamento)"
-                                            className={`p-1 rounded transition-colors ${isCheckedAndre ? 'text-green-600' : 'text-gray-300 hover:text-gray-400'}`}
+                                            className={`p-1 rounded transition-colors ${isCheckedAndre ? 'text-green-600' : 'text-gray-300'} ${isAndre || isSuperAdmin ? 'hover:text-gray-400' : 'cursor-not-allowed opacity-50'}`}
+                                            disabled={!isAndre && !isSuperAdmin}
                                           >
                                             {isCheckedAndre ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
                                           </button>
@@ -955,20 +962,22 @@ const AdminDashboard: React.FC = () => {
                                     <button 
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        toggleLogChecked(dayLogs.map(l => l.id), 'checkedHudson');
+                                        if (isHudson || isSuperAdmin) toggleLogChecked(dayLogs.map(l => l.id), 'checkedHudson');
                                       }}
                                       title="Conferência Hudson (Serviços)"
-                                      className={`p-1 rounded transition-colors ${isCheckedHudson ? 'text-blue-600' : 'text-gray-300 hover:text-gray-400'}`}
+                                      className={`p-1 rounded transition-colors ${isCheckedHudson ? 'text-blue-600' : 'text-gray-300'} ${isHudson || isSuperAdmin ? 'hover:text-gray-400' : 'cursor-not-allowed opacity-50'}`}
+                                      disabled={!isHudson && !isSuperAdmin}
                                     >
                                       <Stamp className="w-5 h-5" />
                                     </button>
                                     <button 
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        toggleLogChecked(dayLogs.map(l => l.id), 'checkedAndre');
+                                        if (isAndre || isSuperAdmin) toggleLogChecked(dayLogs.map(l => l.id), 'checkedAndre');
                                       }}
                                       title="Conferência André (Pagamento)"
-                                      className={`p-1 rounded transition-colors ${isCheckedAndre ? 'text-green-600' : 'text-gray-300 hover:text-gray-400'}`}
+                                      className={`p-1 rounded transition-colors ${isCheckedAndre ? 'text-green-600' : 'text-gray-300'} ${isAndre || isSuperAdmin ? 'hover:text-gray-400' : 'cursor-not-allowed opacity-50'}`}
+                                      disabled={!isAndre && !isSuperAdmin}
                                     >
                                       {isCheckedAndre ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
                                     </button>
