@@ -89,6 +89,8 @@ export interface FuelRecord {
   total: number;
   odometer?: number;
   observations?: string;
+  tanqueCheio?: boolean;
+  tanqueCheioInferido?: boolean;
   createdAt: string;
   proofImage?: string; // Base64 string of the fuel receipt
 }

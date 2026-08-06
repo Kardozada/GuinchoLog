@@ -17,6 +17,7 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user }) => {
   const [liters, setLiters] = useState<number | ''>('');
   const [pricePerLiter, setPricePerLiter] = useState<number | ''>('');
   const [odometer, setOdometer] = useState<number | ''>('');
+  const [tanqueCheio, setTanqueCheio] = useState<boolean | null>(null);
   const [observations, setObservations] = useState('');
   const [proofImage, setProofImage] = useState<string>('');
 
@@ -100,6 +101,11 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user }) => {
       return;
     }
 
+    if (tanqueCheio === null) {
+      alert('Por favor, indique se completou o tanque ou foi um abastecimento parcial.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     const record: FuelRecord = {
@@ -114,6 +120,7 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user }) => {
       pricePerLiter: Number(pricePerLiter),
       total: Number(liters) * Number(pricePerLiter),
       odometer: odometer ? Number(odometer) : undefined,
+      tanqueCheio,
       observations,
       proofImage: proofImage || undefined,
       createdAt: new Date().toISOString()
@@ -141,6 +148,7 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user }) => {
     setLiters('');
     setPricePerLiter('');
     setOdometer('');
+    setTanqueCheio(null);
     setObservations('');
     setProofImage('');
   };
@@ -262,6 +270,20 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user }) => {
                 placeholder="Ex: 154000"
                 className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Abastecimento *</label>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <label className={`flex-1 flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${tanqueCheio === true ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                  <input type="radio" name="tanqueCheio" className="text-indigo-600 focus:ring-indigo-500 h-4 w-4" checked={tanqueCheio === true} onChange={() => setTanqueCheio(true)} />
+                  <span className="ml-3 font-medium text-gray-900">Completei o tanque</span>
+                </label>
+                <label className={`flex-1 flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${tanqueCheio === false ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                  <input type="radio" name="tanqueCheio" className="text-indigo-600 focus:ring-indigo-500 h-4 w-4" checked={tanqueCheio === false} onChange={() => setTanqueCheio(false)} />
+                  <span className="ml-3 font-medium text-gray-900">Abastecimento parcial</span>
+                </label>
+              </div>
             </div>
 
             <div className="sm:col-span-2">

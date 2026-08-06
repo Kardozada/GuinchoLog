@@ -72,48 +72,142 @@ const AdminRefuel: React.FC = () => {
 
   // KPI Calculation
   const getVehicleStats = () => {
-    const stats: Record<string, { totalLiters: number, totalSpent: number, recordsWithOdo: {odo: number, liters: number}[] }> = {};
+    // Group records by vehicleId
+    const vehicleRecords: Record<string, FuelRecord[]> = {};
+    const stats: Record<string, { totalLiters: number, totalSpent: number }> = {};
     
-    // Initialize for all vehicles that have records in the filtered list
     filteredRecords.forEach(r => {
-      if (!stats[r.vehicleId]) {
-        stats[r.vehicleId] = { totalLiters: 0, totalSpent: 0, recordsWithOdo: [] };
+      if (!vehicleRecords[r.vehicleId]) {
+        vehicleRecords[r.vehicleId] = [];
+        stats[r.vehicleId] = { totalLiters: 0, totalSpent: 0 };
       }
+      vehicleRecords[r.vehicleId].push(r);
       stats[r.vehicleId].totalLiters += r.liters;
       stats[r.vehicleId].totalSpent += r.total;
-      
-      if (typeof r.odometer === 'number' && r.odometer > 0) {
-        stats[r.vehicleId].recordsWithOdo.push({ odo: r.odometer, liters: r.liters });
-      }
     });
 
-    const result = Object.entries(stats).map(([vehicleId, data]) => {
+    const result = Object.entries(vehicleRecords).map(([vehicleId, records]) => {
       const vehicle = VEHICLES.find(v => v.id === vehicleId);
       
-      // Calculate average consumption
-      let avgConsumption: string | number = "Dados insuficientes";
-      if (data.recordsWithOdo.length >= 2) {
-        // Sort by odometer
-        const sorted = data.recordsWithOdo.sort((a, b) => a.odo - b.odo);
-        const minOdo = sorted[0].odo;
-        const maxOdo = sorted[sorted.length - 1].odo;
-        
-        let litersConsumed = 0;
-        for (let i = 0; i < sorted.length; i++) {
-          litersConsumed += sorted[i].liters;
+      const lista = [...records].sort((a, b) => {
+        const dA = new Date(a.date).getTime();
+        const dB = new Date(b.date).getTime();
+        if (dA !== dB) return dA - dB;
+        return Number(a.odometer) - Number(b.odometer);
+      });
+
+      const ciclos = [];
+      const inconsistencias = [];
+
+      let totalKm = 0;
+      let totalLitros = 0;
+
+      let odometroAbertura = null;
+      let litrosParciais = 0;
+      let cicloInvalidado = false;
+
+      const LIMITE_MIN = 1.5;
+      const LIMITE_MAX = 8.0;
+
+      for (const reg of lista) {
+        const litros = Number(reg.liters);
+        const odometro = Number(reg.odometer);
+        const litrosOk = Number.isFinite(litros) && litros > 0;
+        const odometroOk = Number.isFinite(odometro) && odometro > 0;
+
+        if (!litrosOk || !odometroOk) {
+          inconsistencias.push({
+            id: reg.id,
+            date: reg.date,
+            motivo: !litrosOk ? "Litros inválidos" : "Odômetro inválido",
+          });
+          if (reg.tanqueCheio && odometroOk) {
+            odometroAbertura = odometro;
+            litrosParciais = 0;
+            cicloInvalidado = false;
+          } else {
+            cicloInvalidado = true;
+          }
+          continue;
         }
-        
-        if (litersConsumed > 0) {
-          avgConsumption = ((maxOdo - minOdo) / litersConsumed).toFixed(2);
+
+        if (odometroAbertura === null) {
+          if (reg.tanqueCheio) {
+            odometroAbertura = odometro;
+            litrosParciais = 0;
+            cicloInvalidado = false;
+          }
+          continue;
         }
+
+        if (!reg.tanqueCheio) {
+          if (odometro < odometroAbertura) {
+            inconsistencias.push({
+              id: reg.id,
+              date: reg.date,
+              motivo: "Odômetro do abastecimento parcial é menor que o da referência",
+            });
+            cicloInvalidado = true;
+          }
+          litrosParciais += litros;
+          continue;
+        }
+
+        const km = odometro - odometroAbertura;
+        const litrosDoCiclo = litrosParciais + litros;
+
+        if (km <= 0) {
+          inconsistencias.push({
+            id: reg.id,
+            date: reg.date,
+            motivo: "Odômetro retrocedeu ou não avançou desde o último tanque cheio",
+          });
+        } else if (cicloInvalidado) {
+          inconsistencias.push({
+            id: reg.id,
+            date: reg.date,
+            motivo: "Ciclo descartado: contém registro com dado inválido",
+          });
+        } else {
+          const consumo = km / litrosDoCiclo;
+          ciclos.push({
+            fechamentoId: reg.id,
+            inicioOdometro: odometroAbertura,
+            fimOdometro: odometro,
+            dataFechamento: reg.date,
+            km,
+            litros: litrosDoCiclo,
+            litrosParciaisIncluidos: litrosParciais,
+            consumo,
+            suspeito: consumo < LIMITE_MIN || consumo > LIMITE_MAX,
+          });
+          totalKm += km;
+          totalLitros += litrosDoCiclo;
+        }
+
+        odometroAbertura = odometro;
+        litrosParciais = 0;
+        cicloInvalidado = false;
       }
+
+      const mediaGeral = totalLitros > 0 ? (totalKm / totalLitros).toFixed(2) : null;
+      
+      let confiabilidade = "ok";
+      if (ciclos.length === 0) confiabilidade = "indisponivel";
+      else if (ciclos.length <= 2) confiabilidade = "amostra_pequena";
 
       return {
         vehicleId,
         vehicleName: vehicle?.name || vehicleId,
-        totalLiters: data.totalLiters,
-        totalSpent: data.totalSpent,
-        avgConsumption
+        totalLiters: stats[vehicleId].totalLiters,
+        totalSpent: stats[vehicleId].totalSpent,
+        mediaGeral,
+        totalKmCalculo: totalKm,
+        totalLitrosCalculo: totalLitros,
+        quantidadeCiclos: ciclos.length,
+        confiabilidade,
+        ciclos,
+        inconsistencias
       };
     });
 
@@ -129,6 +223,13 @@ const AdminRefuel: React.FC = () => {
   };
 
   const stats = getVehicleStats();
+  
+  const cycleMap = new Map();
+  stats.forEach(s => {
+    s.ciclos.forEach((c: any) => {
+      cycleMap.set(c.fechamentoId, c);
+    });
+  });
 
   return (
     <div className="space-y-6">
@@ -157,20 +258,57 @@ const AdminRefuel: React.FC = () => {
                 {stats.map(stat => (
                   <div key={stat.vehicleId} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                     <div className="font-bold text-gray-900 mb-2 border-b border-gray-200 pb-2">{stat.vehicleName}</div>
-                    <div className="space-y-1 text-sm text-gray-700">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Média:</span>
-                        <span className="font-semibold">{stat.avgConsumption} {stat.avgConsumption !== 'Dados insuficientes' && 'km/l'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Total Litros:</span>
-                        <span className="font-semibold">{stat.totalLiters.toFixed(2)} L</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Gasto Total:</span>
-                        <span className="font-semibold text-red-600">
-                          {stat.totalSpent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    <div className="space-y-2 text-sm text-gray-700">
+                      <div className="flex justify-between items-center bg-white p-2 rounded border border-gray-100 shadow-sm">
+                        <span className="text-gray-500 font-medium">Média:</span>
+                        <span className={`font-bold text-base ${stat.confiabilidade === 'indisponivel' ? 'text-gray-400' : 'text-indigo-700'}`}>
+                          {stat.mediaGeral ? `${stat.mediaGeral} km/L` : 'Consumo indisponível'}
                         </span>
+                      </div>
+                      
+                      {stat.confiabilidade !== 'indisponivel' && (
+                        <div className="bg-blue-50 text-blue-800 p-2 rounded text-xs">
+                          {stat.confiabilidade === 'amostra_pequena' && <span className="font-semibold block mb-1">Aviso: Amostra pequena (≤ 2 ciclos)</span>}
+                          <div className="flex justify-between mb-1">
+                            <span>Ciclos válidos:</span>
+                            <span className="font-semibold">{stat.quantidadeCiclos}</span>
+                          </div>
+                          <div className="flex justify-between mb-1">
+                            <span>Km cálculados:</span>
+                            <span className="font-semibold">{stat.totalKmCalculo.toFixed(0)} km</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Litros cálculados:</span>
+                            <span className="font-semibold">{stat.totalLitrosCalculo.toFixed(2)} L</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {stat.inconsistencias.length > 0 && (
+                        <div className="bg-red-50 text-red-800 p-2 rounded text-xs">
+                          <span className="font-semibold block mb-1">Inconsistências encontradas: {stat.inconsistencias.length}</span>
+                          <ul className="list-disc pl-4 space-y-1">
+                            {stat.inconsistencias.slice(0, 3).map((inc: any, i: number) => (
+                              <li key={i}>{new Date(inc.date + 'T12:00:00').toLocaleDateString('pt-BR')}: {inc.motivo}</li>
+                            ))}
+                            {stat.inconsistencias.length > 3 && (
+                              <li>+ {stat.inconsistencias.length - 3} outros...</li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
+
+                      <div className="pt-2 border-t border-gray-200 mt-2 space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Total Abastecido:</span>
+                          <span className="font-semibold">{stat.totalLiters.toFixed(2)} L</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Gasto Total:</span>
+                          <span className="font-semibold text-red-600">
+                            {stat.totalSpent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -275,6 +413,42 @@ const AdminRefuel: React.FC = () => {
                               {record.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                             </span>
                           </div>
+                          
+                          <div className="col-span-2 lg:col-span-4 mt-1">
+                            <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border ${record.tanqueCheio ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+                              {record.tanqueCheio ? (
+                                <>
+                                  <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                                  Tanque cheio
+                                </>
+                              ) : (
+                                <>
+                                  <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                                  Abastecimento parcial
+                                </>
+                              )}
+                              {record.tanqueCheioInferido && " (Inferido)"}
+                            </span>
+                          </div>
+
+                          {cycleMap.has(record.id) && (
+                            <div className="col-span-2 lg:col-span-4 mt-1 p-3 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-between">
+                              <div>
+                                <div className="text-xs text-indigo-600 font-semibold uppercase tracking-wider mb-0.5">Ciclo Fechado</div>
+                                <div className="text-sm text-gray-700">
+                                  <span className="font-medium">Distância:</span> {cycleMap.get(record.id).km} km <span className="mx-2 text-gray-300">|</span> 
+                                  <span className="font-medium">Consumido:</span> {cycleMap.get(record.id).litros.toFixed(2)} L
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className={`text-lg font-bold ${cycleMap.get(record.id).suspeito ? 'text-red-600' : 'text-indigo-700'}`}>
+                                  {cycleMap.get(record.id).consumo.toFixed(2)} km/L
+                                </div>
+                                {cycleMap.get(record.id).suspeito && <div className="text-xs text-red-600 font-medium">Fora da média</div>}
+                              </div>
+                            </div>
+                          )}
+
                           {(record.observations || record.proofImage) && (
                             <div className="col-span-2 lg:col-span-4 flex items-center justify-between mt-1 pt-1 border-t border-gray-100">
                               <span className="text-xs italic text-gray-500">
@@ -425,6 +599,20 @@ const AdminRefuel: React.FC = () => {
                   />
                 </div>
                 
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Abastecimento *</label>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <label className={`flex-1 flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${editingRecord.tanqueCheio === true ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                      <input type="radio" name="editTanqueCheio" className="text-indigo-600 focus:ring-indigo-500 h-4 w-4" checked={editingRecord.tanqueCheio === true} onChange={() => setEditingRecord({...editingRecord, tanqueCheio: true, tanqueCheioInferido: false})} />
+                      <span className="ml-3 font-medium text-gray-900">Completei o tanque</span>
+                    </label>
+                    <label className={`flex-1 flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${editingRecord.tanqueCheio === false ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                      <input type="radio" name="editTanqueCheio" className="text-indigo-600 focus:ring-indigo-500 h-4 w-4" checked={editingRecord.tanqueCheio === false} onChange={() => setEditingRecord({...editingRecord, tanqueCheio: false, tanqueCheioInferido: false})} />
+                      <span className="ml-3 font-medium text-gray-900">Abastecimento parcial</span>
+                    </label>
+                  </div>
+                </div>
+
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Total (R$)</label>
                   <div className="w-full p-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-800 font-bold">

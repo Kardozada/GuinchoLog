@@ -206,7 +206,17 @@ export const fetchFuelRecords = async (): Promise<FuelRecord[]> => {
     const querySnapshot = await getDocsSmart(q, 'fuels_all');
     const records: FuelRecord[] = [];
     querySnapshot.forEach((doc) => {
-      records.push(doc.data() as FuelRecord);
+      const data = doc.data() as FuelRecord;
+      
+      // Inference for historical data
+      if (data.tanqueCheio === undefined) {
+        const obs = (data.observations || '').toLowerCase();
+        const isFull = obs.includes('completo') || obs.includes('tanque cheio') || obs.includes('enchi');
+        data.tanqueCheio = isFull;
+        data.tanqueCheioInferido = true;
+      }
+      
+      records.push(data);
     });
     return records.sort((a, b) => {
       const dateA = new Date(a.date).getTime();
