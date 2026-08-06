@@ -196,12 +196,51 @@ const AdminRefuel: React.FC = () => {
       if (ciclos.length === 0) confiabilidade = "indisponivel";
       else if (ciclos.length <= 2) confiabilidade = "amostra_pequena";
 
+      // --- CÁLCULO DA ESTIMATIVA (FALLBACK) ---
+      let estKm = 0;
+      let estLitros = 0;
+      const registrosValidos = lista.filter(r => 
+        Number.isFinite(Number(r.odometer)) && Number(r.odometer) > 0 && 
+        Number.isFinite(Number(r.liters)) && Number(r.liters) > 0
+      );
+      
+      for (let i = 1; i < registrosValidos.length; i++) {
+        const anterior = registrosValidos[i - 1];
+        const atual = registrosValidos[i];
+        
+        if (Number(atual.odometer) > Number(anterior.odometer)) {
+          estKm += (Number(atual.odometer) - Number(anterior.odometer));
+          estLitros += Number(atual.liters);
+        }
+      }
+      
+      let estimativa = (estKm > 0 && estLitros > 0) ? (estKm / estLitros) : null;
+      
+      let metodo = "indisponivel";
+      let valorKmL: string | null = null;
+      let suspeito = false;
+      
+      if (ciclos.length > 0 && mediaGeral) {
+        metodo = "preciso";
+        valorKmL = mediaGeral;
+        const num = parseFloat(valorKmL);
+        suspeito = num < LIMITE_MIN || num > LIMITE_MAX;
+      } else if (estimativa !== null) {
+        metodo = "estimativa";
+        valorKmL = estimativa.toFixed(2);
+        const num = estimativa;
+        suspeito = num < LIMITE_MIN || num > LIMITE_MAX;
+      }
+
       return {
         vehicleId,
         vehicleName: vehicle?.name || vehicleId,
         totalLiters: stats[vehicleId].totalLiters,
         totalSpent: stats[vehicleId].totalSpent,
         mediaGeral,
+        metodo,
+        valorKmL,
+        suspeito,
         totalKmCalculo: totalKm,
         totalLitrosCalculo: totalLitros,
         quantidadeCiclos: ciclos.length,
@@ -259,14 +298,37 @@ const AdminRefuel: React.FC = () => {
                   <div key={stat.vehicleId} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                     <div className="font-bold text-gray-900 mb-2 border-b border-gray-200 pb-2">{stat.vehicleName}</div>
                     <div className="space-y-2 text-sm text-gray-700">
-                      <div className="flex justify-between items-center bg-white p-2 rounded border border-gray-100 shadow-sm">
-                        <span className="text-gray-500 font-medium">Média:</span>
-                        <span className={`font-bold text-base ${stat.confiabilidade === 'indisponivel' ? 'text-gray-400' : 'text-indigo-700'}`}>
-                          {stat.mediaGeral ? `${stat.mediaGeral} km/L` : 'Consumo indisponível'}
-                        </span>
+                      <div className="flex flex-col gap-1 bg-white p-2 rounded border border-gray-100 shadow-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500 font-medium">Média:</span>
+                          {stat.metodo === 'preciso' ? (
+                            <span className="font-bold text-base text-indigo-700">
+                              {stat.valorKmL} km/L
+                            </span>
+                          ) : stat.metodo === 'estimativa' ? (
+                            <span className="font-bold text-base text-amber-600">
+                              ≈ {stat.valorKmL} km/L
+                            </span>
+                          ) : (
+                            <span className="font-bold text-base text-gray-400">
+                              Consumo indisponível
+                            </span>
+                          )}
+                        </div>
+                        {stat.metodo === 'estimativa' && (
+                          <span className="text-[10px] text-gray-500 text-right leading-tight">
+                            estimativa (poucos/nenhum tanque cheio registrado)
+                          </span>
+                        )}
                       </div>
+
+                      {stat.suspeito && stat.metodo !== 'indisponivel' && (
+                        <div className="text-[11px] font-semibold text-red-600 px-1">
+                          Valor suspeito — verifique os lançamentos deste veículo
+                        </div>
+                      )}
                       
-                      {stat.confiabilidade !== 'indisponivel' && (
+                      {stat.metodo === 'preciso' && (
                         <div className="bg-blue-50 text-blue-800 p-2 rounded text-xs">
                           {stat.confiabilidade === 'amostra_pequena' && <span className="font-semibold block mb-1">Aviso: Amostra pequena (≤ 2 ciclos)</span>}
                           <div className="flex justify-between mb-1">
