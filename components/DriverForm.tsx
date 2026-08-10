@@ -166,7 +166,7 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
         img.src = event.target?.result as string;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 600; // Resize to max 600px width
+          const MAX_WIDTH = 900; // Resize to max 900px width for better legibility
           const scaleSize = MAX_WIDTH / img.width;
           canvas.width = MAX_WIDTH;
           canvas.height = img.height * scaleSize;
@@ -174,8 +174,8 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
           
-          // Compress to JPEG with 0.5 quality
-          resolve(canvas.toDataURL('image/jpeg', 0.5));
+          // Compress to JPEG with 0.7 quality
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
         };
         img.onerror = (err) => reject(err);
       };

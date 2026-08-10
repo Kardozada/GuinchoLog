@@ -7,9 +7,10 @@ import { v4 as uuidv4 } from 'uuid';
 
 interface RefuelFormProps {
   user: User;
+  onSuccess?: () => void;
 }
 
-const RefuelForm: React.FC<RefuelFormProps> = ({ user }) => {
+const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
   const [date, setDate] = useState(getLocalDate());
   const [vehicleId, setVehicleId] = useState('');
   const [station, setStation] = useState('');
@@ -55,8 +56,8 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user }) => {
           let width = img.width;
           let height = img.height;
           
-          // Max dimension 600px
-          const maxDim = 600;
+          // Max dimension 1200px for better legibility of text
+          const maxDim = 1200;
           if (width > height && width > maxDim) {
             height *= maxDim / width;
             width = maxDim;
@@ -70,8 +71,8 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user }) => {
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
           
-          // Compress to JPEG with 0.5 quality to keep it well under 1MB for Firestore
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.5);
+          // Compress to JPEG with 0.8 quality to keep it legible but reasonably sized
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
           setProofImage(compressedBase64);
         };
         img.src = reader.result as string;
@@ -131,6 +132,7 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user }) => {
       await loadRecords();
       resetForm();
       setShowSuccess(true);
+      if (onSuccess) onSuccess();
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (error) {
       console.error('Erro ao salvar:', error);

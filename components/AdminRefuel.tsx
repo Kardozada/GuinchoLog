@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { FuelRecord } from '../types';
 import { VEHICLES, POSTOS, TIPOS_COMBUSTIVEL } from '../constants';
-import { fetchFuelRecords, deleteFuelRecord, saveFuelRecord } from '../services/storage';
-import { Droplet, Calendar, Loader2, Edit2, Trash2, User as UserIcon, X, Search, BarChart3, Save, Image as ImageIcon, ChevronUp, ChevronDown } from 'lucide-react';
+import { fetchFuelRecords, deleteFuelRecord, saveFuelRecord, getCurrentUser } from '../services/storage';
+import { Droplet, Calendar, Loader2, Edit2, Trash2, User as UserIcon, X, Search, BarChart3, Save, Image as ImageIcon, ChevronUp, ChevronDown, Plus } from 'lucide-react';
+import RefuelForm from './RefuelForm';
 
 const AdminRefuel: React.FC = () => {
   const [records, setRecords] = useState<FuelRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAddingNew, setIsAddingNew] = useState(false);
 
   // Filters
   const [filterVehicle, setFilterVehicle] = useState('');
@@ -272,6 +274,20 @@ const AdminRefuel: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <Droplet className="w-6 h-6 text-indigo-600" />
+          Gestão de Abastecimentos
+        </h1>
+        <button
+          onClick={() => setIsAddingNew(true)}
+          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition-colors w-full sm:w-auto justify-center"
+        >
+          <Plus className="w-5 h-5" />
+          Novo Lançamento
+        </button>
+      </div>
+
       {/* Resumo / Relatório */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-4 sm:p-6 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
@@ -715,6 +731,27 @@ const AdminRefuel: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Novo Abastecimento */}
+      {isAddingNew && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex justify-center items-start pt-10 px-4 overflow-y-auto pb-10">
+          <div className="w-full max-w-4xl relative">
+            <button 
+              onClick={() => setIsAddingNew(false)} 
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 bg-white/80 rounded-full z-10"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <RefuelForm 
+              user={getCurrentUser()!} 
+              onSuccess={() => {
+                setIsAddingNew(false);
+                loadRecords();
+              }} 
+            />
           </div>
         </div>
       )}
