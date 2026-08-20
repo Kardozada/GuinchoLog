@@ -113,7 +113,7 @@ const AdminDashboard: React.FC = () => {
   
   // Navigation State
   const [activeTab, setActiveTab] = useState<TabView>('overview');
-  const [cashTabDate, setCashTabDate] = useState(getLocalDate());
+  const [cashTabMonth, setCashTabMonth] = useState(getLocalDate().slice(0, 7)); // "YYYY-MM"
   
   // Date Navigation State
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
@@ -1037,26 +1037,49 @@ const AdminDashboard: React.FC = () => {
   };
 
   const renderCashServices = () => {
-    // Filter logs for the selected date
-    const dayLogs = logs.filter(l => l.date === cashTabDate);
-    
-    // We only want logs that have at least one service in DINHEIRO
-    const logsWithCash = dayLogs.filter(l => 
-      Array.isArray(l.services) && l.services.some(s => s.paymentMethod === 'DINHEIRO' || (s.paymentMethod as any) === 'CASH')
+    // Mostra TODOS os serviços à vista (dinheiro) do MÊS selecionado, agrupados
+    // por data — sem precisar caçar dia a dia. É pra destacar quem recebeu.
+    const cashOf = (l: DailyLog) =>
+      (Array.isArray(l.services) ? l.services : []).filter(
+        s => s.paymentMethod === 'DINHEIRO' || (s.paymentMethod as any) === 'CASH'
+      );
+
+    const monthLogs = logs
+      .filter(l => typeof l.date === 'string' && l.date.startsWith(cashTabMonth))
+      .filter(l => cashOf(l).length > 0);
+
+    // Agrupa por data (chave "YYYY-MM-DD")
+    const byDate = new Map<string, DailyLog[]>();
+    monthLogs.forEach(l => {
+      const arr = byDate.get(l.date) || [];
+      arr.push(l);
+      byDate.set(l.date, arr);
+    });
+    const sortedDates = Array.from(byDate.keys()).sort((a, b) => b.localeCompare(a));
+
+    // Totais do mês inteiro
+    const totalCashMonth = monthLogs.reduce(
+      (acc, l) => acc + cashOf(l).reduce((s, srv) => s + (Number(srv.value) || 0), 0),
+      0
     );
-    
-    // Calculate totals for the day
-    const totalCashServicesDay = logsWithCash.reduce((acc, l) => {
-      const services = Array.isArray(l.services) ? l.services : [];
-      return acc + services.filter(s => s.paymentMethod === 'DINHEIRO' || (s.paymentMethod as any) === 'CASH').reduce((sum, s) => sum + (Number(s.value) || 0), 0);
-    }, 0);
-    
-    // "A Pagar ao Admin" total (which is the liquid cash total)
-    const totalLiquidCashDay = logsWithCash.reduce((acc, l) => acc + l.totalLiquidCash, 0);
+    const totalLiquidCashMonth = monthLogs.reduce(
+      (acc, l) => acc + (Number(l.totalLiquidCash) || 0),
+      0
+    );
+
+    const fmtDateHeader = (d: string) => {
+      try {
+        return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', {
+          weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric'
+        });
+      } catch {
+        return d;
+      }
+    };
 
     return (
       <div className="space-y-4 animate-fade-in">
-        {/* Header and Date Filter */}
+        {/* Header e seletor de MÊS */}
         <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
            <div>
              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -1064,84 +1087,108 @@ const AdminDashboard: React.FC = () => {
                Serviços à Vista (Dinheiro)
              </h3>
              <p className="text-sm text-gray-500">
-               Acompanhe o dinheiro físico arrecadado por motorista no dia.
+               Todos os recebimentos em dinheiro do mês, agrupados por dia.
              </p>
            </div>
            <div className="flex items-center gap-3 w-full sm:w-auto">
              <div className="bg-gray-100 p-2 rounded-lg flex items-center gap-2 flex-1 sm:flex-none">
                <Calendar className="w-4 h-4 text-gray-500" />
                <input
-                 type="date"
-                 value={cashTabDate}
-                 onChange={(e) => setCashTabDate(e.target.value)}
+                 type="month"
+                 value={cashTabMonth}
+                 onChange={(e) => setCashTabMonth(e.target.value)}
                  className="bg-transparent border-none outline-none text-sm font-medium text-gray-700 w-full"
                />
              </div>
            </div>
         </div>
 
-        {/* Totals KPI */}
+        {/* KPIs do mês */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
            <div className="bg-white rounded-xl shadow-sm border border-green-100 p-4 sm:p-6 border-l-4 border-l-green-500">
-              <span className="block text-sm font-medium text-gray-500 mb-1">Total de Serviços (Dinheiro)</span>
-              <span className="text-2xl font-bold text-gray-900">R$ {totalCashServicesDay.toFixed(2)}</span>
+              <span className="block text-sm font-medium text-gray-500 mb-1">Total em Dinheiro (mês)</span>
+              <span className="text-2xl font-bold text-gray-900">R$ {totalCashMonth.toFixed(2)}</span>
            </div>
            <div className="bg-white rounded-xl shadow-sm border border-indigo-100 p-4 sm:p-6 border-l-4 border-l-indigo-500">
-              <span className="block text-sm font-medium text-gray-500 mb-1">Acerto Líquido (A Receber do Motorista)</span>
-              <span className="text-2xl font-bold text-indigo-700">R$ {totalLiquidCashDay.toFixed(2)}</span>
+              <span className="block text-sm font-medium text-gray-500 mb-1">Acerto Líquido a Receber (mês)</span>
+              <span className="text-2xl font-bold text-indigo-700">R$ {totalLiquidCashMonth.toFixed(2)}</span>
            </div>
         </div>
 
-        {/* Drivers List */}
-        {logsWithCash.length === 0 ? (
+        {/* Lista agrupada por data (mais recente primeiro) */}
+        {sortedDates.length === 0 ? (
           <div className="bg-white rounded-xl p-8 text-center text-gray-500 shadow-sm border border-gray-100 flex flex-col items-center gap-2">
             <DollarSign className="w-8 h-8 text-gray-300 mx-auto" />
-            <p>Nenhum serviço em dinheiro registrado para esta data.</p>
+            <p>Nenhum serviço em dinheiro registrado neste mês.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {logsWithCash.map(log => {
-              const services = Array.isArray(log.services) ? log.services : [];
-              const cashServices = services.filter(s => s.paymentMethod === 'DINHEIRO' || (s.paymentMethod as any) === 'CASH');
-              const totalExpenses = log.totalExpenses || 0;
-              
+          <div className="space-y-6">
+            {sortedDates.map(date => {
+              const dayLogs = byDate.get(date)!;
+              const dayTotal = dayLogs.reduce(
+                (acc, l) => acc + cashOf(l).reduce((s, srv) => s + (Number(srv.value) || 0), 0),
+                0
+              );
               return (
-                <div key={log.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
-                  <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
-                     <div className="flex items-center gap-3">
-                       <UserIcon className="w-5 h-5 text-gray-400" />
-                       <span className="font-bold text-gray-900">{log.driverName}</span>
-                     </div>
-                     <div className="text-right">
-                       <span className="block text-xs text-gray-500">Acerto Final</span>
-                       <span className={`font-bold ${log.totalLiquidCash < 0 ? 'text-amber-600' : 'text-green-600'}`}>
-                         R$ {Math.abs(log.totalLiquidCash).toFixed(2)}
-                         <span className="text-xs ml-1 font-normal">{log.totalLiquidCash < 0 ? '(A Reembolsar)' : '(A Pagar)'}</span>
-                       </span>
-                     </div>
-                  </div>
-                  <div className="p-4 flex-1">
-                    <div className="space-y-3">
-                      {cashServices.map((srv, idx) => (
-                        <div key={idx} className="flex justify-between items-center p-2 rounded-lg bg-green-50 border border-green-100">
-                           <div>
-                             <span className="font-medium text-gray-900 text-sm block">{srv.clientName || srv.destination}</span>
-                             <span className="text-xs text-gray-500">{srv.towedVehicle} ({srv.towedPlate})</span>
-                           </div>
-                           <span className="font-bold text-green-700">+ R$ {Number(srv.value).toFixed(2)}</span>
-                        </div>
-                      ))}
-                      
-                      {totalExpenses > 0 && (
-                        <div className="flex justify-between items-center p-2 rounded-lg bg-red-50 border border-red-100 mt-2">
-                           <div className="flex items-center gap-2">
-                             <Minus className="w-4 h-4 text-red-500" />
-                             <span className="font-medium text-gray-900 text-sm">Despesas do Dia (Abatidas)</span>
-                           </div>
-                           <span className="font-bold text-red-700">- R$ {totalExpenses.toFixed(2)}</span>
-                        </div>
-                      )}
+                <div key={date}>
+                  {/* Cabeçalho do dia */}
+                  <div className="flex items-center justify-between mb-3 border-b border-gray-200 pb-2">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-indigo-500" />
+                      <span className="font-bold text-gray-800 capitalize">{fmtDateHeader(date)}</span>
+                      <span className="text-xs text-gray-500">
+                        ({dayLogs.length} motorista{dayLogs.length > 1 ? 's' : ''})
+                      </span>
                     </div>
+                    <span className="text-sm font-bold text-green-700">R$ {dayTotal.toFixed(2)}</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {dayLogs.map(log => {
+                      const cashServices = cashOf(log);
+                      const totalExpenses = log.totalExpenses || 0;
+                      const liquid = Number(log.totalLiquidCash) || 0;
+                      return (
+                        <div key={log.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
+                          <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                             <div className="flex items-center gap-3">
+                               <UserIcon className="w-5 h-5 text-gray-400" />
+                               <span className="font-bold text-gray-900">{log.driverName}</span>
+                             </div>
+                             <div className="text-right">
+                               <span className="block text-xs text-gray-500">Acerto Final</span>
+                               <span className={`font-bold ${liquid < 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                                 R$ {Math.abs(liquid).toFixed(2)}
+                                 <span className="text-xs ml-1 font-normal">{liquid < 0 ? '(A Reembolsar)' : '(A Pagar)'}</span>
+                               </span>
+                             </div>
+                          </div>
+                          <div className="p-4 flex-1">
+                            <div className="space-y-3">
+                              {cashServices.map((srv, idx) => (
+                                <div key={idx} className="flex justify-between items-center p-2 rounded-lg bg-green-50 border border-green-100">
+                                   <div>
+                                     <span className="font-medium text-gray-900 text-sm block">{srv.clientName || srv.destination}</span>
+                                     <span className="text-xs text-gray-500">{srv.towedVehicle} ({srv.towedPlate})</span>
+                                   </div>
+                                   <span className="font-bold text-green-700">+ R$ {(Number(srv.value) || 0).toFixed(2)}</span>
+                                </div>
+                              ))}
+
+                              {totalExpenses > 0 && (
+                                <div className="flex justify-between items-center p-2 rounded-lg bg-red-50 border border-red-100 mt-2">
+                                   <div className="flex items-center gap-2">
+                                     <Minus className="w-4 h-4 text-red-500" />
+                                     <span className="font-medium text-gray-900 text-sm">Despesas do Dia (Abatidas)</span>
+                                   </div>
+                                   <span className="font-bold text-red-700">- R$ {totalExpenses.toFixed(2)}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
