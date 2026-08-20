@@ -81,12 +81,15 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
           }
         }
         
-        const calculatedTotalInvoiced = (log.services || []).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
-        const calculatedTotalExpenses = (log.expenses || []).reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
-        const calculatedTotalLiquidTerm = (log.services || [])
+        const servicesArray = Array.isArray(log.services) ? log.services : [];
+        const expensesArray = Array.isArray(log.expenses) ? log.expenses : [];
+        
+        const calculatedTotalInvoiced = servicesArray.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+        const calculatedTotalExpenses = expensesArray.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
+        const calculatedTotalLiquidTerm = servicesArray
           .filter(s => s.paymentMethod === 'A PRAZO')
           .reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
-        const calculatedTotalLiquidCash = (log.services || [])
+        const calculatedTotalLiquidCash = servicesArray
           .filter(s => s.paymentMethod === 'DINHEIRO')
           .reduce((acc, curr) => acc + (Number(curr.value) || 0), 0) - calculatedTotalExpenses;
 
