@@ -22,7 +22,10 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
   const [observations, setObservations] = useState('');
   const [proofImage, setProofImage] = useState<string>('');
 
-  const [records, setRecords] = useState<FuelRecord[]>([]);
+  // A lista de histórico só exibe um selo "Comprovante", nunca a foto em si.
+  // Guardamos os registros SEM o base64 da imagem (só um booleano hasProof)
+  // para não acumular megabytes de fotos na memória e travar o navegador.
+  const [records, setRecords] = useState<(Omit<FuelRecord, 'proofImage'> & { hasProof: boolean })[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -36,49 +39,66 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
   const loadRecords = async () => {
     setIsLoading(true);
     const data = await getFuelRecordsByUser(user.id);
-    setRecords(data);
+    // Descarta o base64 da foto da cópia em memória (a lista só mostra o selo).
+    // Isso não afeta o banco — apenas alivia a RAM ao exibir o histórico.
+    const light = data.map(({ proofImage, ...rest }) => ({ ...rest, hasProof: !!proofImage }));
+    setRecords(light);
     setIsLoading(false);
   };
 
-  const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        alert('A imagem é muito grande. O limite é 10MB.');
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      alert('A imagem é muito grande. O limite é 10MB.');
+      return;
+    }
+
+    // Compressão com baixo pico de memória: encolhe a imagem DURANTE a
+    // decodificação (createImageBitmap) para não abrir a foto original inteira
+    // na RAM — isso travava o navegador em celulares mais fracos. Fallback para
+    // o método antigo (FileReader + Image) quando createImageBitmap não existe.
+    const maxDim = 1000;
+    const quality = 0.6;
+
+    const drawToBase64 = (source: CanvasImageSource, w: number, h: number): string => {
+      let width = w;
+      let height = h;
+      if (width > height && width > maxDim) {
+        height = Math.round(height * (maxDim / width));
+        width = maxDim;
+      } else if (height > maxDim) {
+        width = Math.round(width * (maxDim / height));
+        height = maxDim;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(source, 0, 0, width, height);
+      return canvas.toDataURL('image/jpeg', quality);
+    };
+
+    try {
+      if (typeof createImageBitmap === 'function') {
+        const bitmap = await createImageBitmap(file);
+        const base64 = drawToBase64(bitmap, bitmap.width, bitmap.height);
+        bitmap.close();
+        setProofImage(base64);
         return;
       }
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          
-          // Max dimension 1200px for better legibility of text
-          const maxDim = 1200;
-          if (width > height && width > maxDim) {
-            height *= maxDim / width;
-            width = maxDim;
-          } else if (height > maxDim) {
-            width *= maxDim / height;
-            height = maxDim;
-          }
-          
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-          
-          // Compress to JPEG with 0.8 quality to keep it legible but reasonably sized
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
-          setProofImage(compressedBase64);
-        };
-        img.src = reader.result as string;
-      };
-      reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn('createImageBitmap falhou, usando fallback.', err);
     }
+
+    // Fallback
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const img = new Image();
+      img.onload = () => setProofImage(drawToBase64(img, img.width, img.height));
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
   const clearImage = () => {
@@ -431,12 +451,12 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
                               {record.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                             </span>
                           </div>
-                          {(record.observations || record.proofImage) && (
+                          {(record.observations || record.hasProof) && (
                             <div className="col-span-2 lg:col-span-4 flex items-center justify-between mt-1 pt-1 border-t border-gray-100">
                               <span className="text-xs italic text-gray-500">
                                 {record.observations ? `Obs: ${record.observations}` : ''}
                               </span>
-                              {record.proofImage && (
+                              {record.hasProof && (
                                 <div className="flex items-center gap-1 text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded">
                                   <ImageIcon className="w-3 h-3" />
                                   <span>Comprovante</span>
