@@ -159,28 +159,52 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
     .filter(s => s.paymentMethod === PaymentMethod.CASH || (s.paymentMethod as any) === 'DINHEIRO')
     .reduce((acc, curr) => acc + (Number(curr.value) || 0), 0) - totalExpenses;
 
-  // Image Compression Utility
-  const compressImage = (file: File): Promise<string> => {
+  // Image Compression Utility — com baixo pico de memória.
+  // Usa createImageBitmap para encolher a imagem DURANTE a decodificação, em vez
+  // de abrir a foto original inteira na RAM (que travava o navegador em celulares
+  // fracos). Fallback para FileReader + Image quando não disponível. Preserva a
+  // proporção e nunca aumenta a imagem (evita gerar arquivos maiores à toa).
+  const compressImage = async (file: File): Promise<string> => {
+    const maxDim = 1000;
+    const quality = 0.6;
+
+    const drawToBase64 = (source: CanvasImageSource, w: number, h: number): string => {
+      let width = w;
+      let height = h;
+      if (width > height && width > maxDim) {
+        height = Math.round(height * (maxDim / width));
+        width = maxDim;
+      } else if (height > maxDim) {
+        width = Math.round(width * (maxDim / height));
+        height = maxDim;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(source, 0, 0, width, height);
+      return canvas.toDataURL('image/jpeg', quality);
+    };
+
+    try {
+      if (typeof createImageBitmap === 'function') {
+        const bitmap = await createImageBitmap(file);
+        const base64 = drawToBase64(bitmap, bitmap.width, bitmap.height);
+        bitmap.close();
+        return base64;
+      }
+    } catch (err) {
+      console.warn('createImageBitmap falhou, usando fallback.', err);
+    }
+
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = (event) => {
         const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 900; // Resize to max 900px width for better legibility
-          const scaleSize = MAX_WIDTH / img.width;
-          canvas.width = MAX_WIDTH;
-          canvas.height = img.height * scaleSize;
-          
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-          
-          // Compress to JPEG with 0.7 quality
-          resolve(canvas.toDataURL('image/jpeg', 0.7));
-        };
+        img.onload = () => resolve(drawToBase64(img, img.width, img.height));
         img.onerror = (err) => reject(err);
+        img.src = event.target?.result as string;
       };
       reader.onerror = (err) => reject(err);
     });
