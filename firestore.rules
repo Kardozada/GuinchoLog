@@ -1,8 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Blindagem interina: exige que a requisição venha autenticada (o app faz
+    // login anônimo do Firebase). Bloqueia acesso "de fora" do app pela API
+    // pública — ninguém sem token lê/escreve/apaga o banco nem queima a cota.
+    // OBS: ainda não é controle por papel; isso vem quando houver login real.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
   }
 }
