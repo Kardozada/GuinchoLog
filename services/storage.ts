@@ -1,5 +1,5 @@
 import { DailyLog, User, FuelRecord, MaintenanceRecord } from '../types';
-import { db } from './firebase';
+import { db, authReady } from './firebase';
 import { collection, doc, setDoc, getDocs, getDocsFromCache, deleteDoc, query, where } from 'firebase/firestore';
 
 const USER_KEY = 'guincholog_user';
@@ -54,6 +54,8 @@ async function getDocsSmart(q: any, cacheKey: string, cooldownMs = 5 * 60 * 1000
   );
   
   try {
+    // Espera o login anônimo antes de ir ao servidor (regras exigem auth).
+    await authReady;
     const snapshot = await Promise.race([getDocs(q), timeoutPromise]) as any;
     localStorage.setItem(syncKey, now.toString());
     return snapshot;
