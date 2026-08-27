@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { getAllLogs, updateLog, getCurrentUser, deleteLog } from '../services/storage';
+import { getAllLogs, updateLog, getCurrentUser, deleteLog, fetchDrivers } from '../services/storage';
 import { analyzeDailyLogs } from '../services/geminiService';
-import { DailyLog, ServiceItem, ExpenseItem, PaymentMethod, EditHistoryEntry } from '../types';
+import { DailyLog, ServiceItem, ExpenseItem, PaymentMethod, EditHistoryEntry, User } from '../types';
 import { MOCK_DRIVERS, VEHICLES, getLocalDate, getLocalDateFromDate } from '../constants';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Bot, FileText, Search, TrendingUp, RefreshCw, AlertTriangle, X, Copy, Check, Settings, Calendar, Users, ChevronDown, ChevronRight, MapPin, Clock, Truck, DollarSign, Image as ImageIcon, LayoutDashboard, Pencil, History, Save, Trash2, Plus, Square, CheckSquare, Stamp, Droplet, Wrench, User as UserIcon, Minus } from 'lucide-react';
@@ -107,6 +107,9 @@ type TabView = 'overview' | 'dates' | 'drivers' | 'cash' | 'refuel' | 'maintenan
 
 const AdminDashboard: React.FC = () => {
   const [logs, setLogs] = useState<DailyLog[]>([]);
+  // Lista de motoristas vinda do banco (fonte da verdade). Começa com a lista
+  // fixa como fallback até o banco responder, para não piscar vazio.
+  const [registeredDrivers, setRegisteredDrivers] = useState<User[]>(MOCK_DRIVERS);
   const [aiAnalysis, setAiAnalysis] = useState<string>('');
   const [loadingAi, setLoadingAi] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
@@ -216,8 +219,8 @@ const AdminDashboard: React.FC = () => {
         .filter(s => s.paymentMethod === 'DINHEIRO')
         .reduce((acc, curr) => acc + (Number(curr.value) || 0), 0) - calculatedTotalExpenses;
 
-      // Normalize driverName to match MOCK_DRIVERS if possible
-      const matchedDriver = MOCK_DRIVERS.find(d => 
+      // Normalize driverName to match the registered drivers if possible
+      const matchedDriver = registeredDrivers.find(d =>
         (log.userId && d.id === log.userId) || 
         (log.driverName && d.name.toLowerCase().trim() === log.driverName.toLowerCase().trim())
       );
@@ -246,6 +249,16 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Carrega os motoristas do banco (mesma fonte da aba Cadastro) e recarrega
+  // ao abrir a aba de conferência, para que remover/adicionar reflita aqui.
+  useEffect(() => {
+    if (activeTab === 'drivers' || activeTab === 'overview') {
+      fetchDrivers()
+        .then(list => { if (list.length > 0) setRegisteredDrivers(list); })
+        .catch(() => { /* mantém o fallback */ });
+    }
+  }, [activeTab]);
 
   const handleAiAnalysis = async () => {
     if (logs.length === 0) return;
@@ -811,7 +824,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const renderDrivers = () => {
-    const allDrivers = [...MOCK_DRIVERS];
+    const allDrivers = [...registeredDrivers];
     const isHudson = currentUser?.name?.toLowerCase().includes('hudson');
     const isAndre = currentUser?.name?.toLowerCase().includes('andre');
     const isMatheus = currentUser?.name?.toLowerCase().includes('matheus');
