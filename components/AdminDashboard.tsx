@@ -7,6 +7,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Bot, FileText, Search, TrendingUp, RefreshCw, AlertTriangle, X, Copy, Check, Settings, Calendar, Users, ChevronDown, ChevronRight, MapPin, Clock, Truck, DollarSign, Image as ImageIcon, LayoutDashboard, Pencil, History, Save, Trash2, Plus, Square, CheckSquare, Stamp, Droplet, Wrench, User as UserIcon, Minus } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import AdminRefuel from './AdminRefuel';
+import DriverManagement from './DriverManagement';
 import AdminMaintenance from './AdminMaintenance';
 
 // --- GAS SCRIPT ATUALIZADO (Suporte a Update/Upsert) ---
@@ -102,7 +103,7 @@ function setup() {
   }
 }`;
 
-type TabView = 'overview' | 'dates' | 'drivers' | 'cash' | 'refuel' | 'maintenance';
+type TabView = 'overview' | 'dates' | 'drivers' | 'cash' | 'refuel' | 'maintenance' | 'register';
 
 const AdminDashboard: React.FC = () => {
   const [logs, setLogs] = useState<DailyLog[]>([]);
@@ -1263,6 +1264,13 @@ const AdminDashboard: React.FC = () => {
             <Wrench className="w-4 h-4" />
             Manutenção
           </button>
+          <button
+            onClick={() => setActiveTab('register')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'register' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            <UserIcon className="w-4 h-4" />
+            Cadastro
+          </button>
        </div>
 
        {/* Content */}
@@ -1273,6 +1281,7 @@ const AdminDashboard: React.FC = () => {
           {activeTab === 'cash' && renderCashServices()}
           {activeTab === 'refuel' && <AdminRefuel />}
           {activeTab === 'maintenance' && <AdminMaintenance />}
+          {activeTab === 'register' && <DriverManagement />}
        </div>
 
        {/* Modals */}
