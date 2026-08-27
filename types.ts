@@ -11,6 +11,7 @@ export interface User {
   cpf?: string; // Added CPF field
   role: UserRole;
   avatarUrl?: string;
+  password?: string; // Senha personalizada (opcional). Vazio = 6 primeiros dígitos do CPF.
 }
 
 export enum PaymentMethod {

@@ -301,3 +301,52 @@ export const deleteMaintenanceRecord = async (recordId: string): Promise<void> =
     handleFirestoreError(e, OperationType.DELETE, path);
   }
 };
+
+// --- Gestão de Motoristas (coleção 'drivers') ---
+const DRIVERS_COLLECTION = 'drivers';
+const DRIVERS_SYNC_KEY = 'sync_time_drivers_all';
+
+export const fetchDrivers = async (): Promise<User[]> => {
+  try {
+    const q = query(collection(db, DRIVERS_COLLECTION));
+    const snap = await getDocsSmart(q, 'drivers_all');
+    const drivers: User[] = [];
+    snap.forEach((d) => drivers.push(d.data() as User));
+    return drivers.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  } catch (e) {
+    handleFirestoreError(e, OperationType.GET, DRIVERS_COLLECTION);
+    return [];
+  }
+};
+
+export const saveDriver = async (driver: User): Promise<void> => {
+  const path = `${DRIVERS_COLLECTION}/${driver.id}`;
+  try {
+    const clean = JSON.parse(JSON.stringify(driver));
+    await setDoc(doc(db, DRIVERS_COLLECTION, driver.id), clean);
+    localStorage.removeItem(DRIVERS_SYNC_KEY); // força releitura fresca após alteração
+  } catch (e) {
+    handleFirestoreError(e, OperationType.WRITE, path);
+    throw e;
+  }
+};
+
+export const deleteDriver = async (driverId: string): Promise<void> => {
+  const path = `${DRIVERS_COLLECTION}/${driverId}`;
+  try {
+    await deleteDoc(doc(db, DRIVERS_COLLECTION, driverId));
+    localStorage.removeItem(DRIVERS_SYNC_KEY);
+  } catch (e) {
+    handleFirestoreError(e, OperationType.DELETE, path);
+    throw e;
+  }
+};
+
+// Semeia a coleção com a lista fornecida se ela ainda estiver vazia (migração
+// única dos motoristas que estavam fixos no código). Devolve a lista resultante.
+export const seedDriversIfEmpty = async (seed: User[]): Promise<User[]> => {
+  const existing = await fetchDrivers();
+  if (existing.length > 0) return existing;
+  await Promise.all(seed.map((d) => saveDriver(d)));
+  return fetchDrivers();
+};

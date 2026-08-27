@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User, UserRole } from '../types';
 import { MOCK_ADMINS, MOCK_DRIVERS, MOCK_MECHANICS } from '../constants';
-import { setCurrentUser } from '../services/storage';
+import { setCurrentUser, fetchDrivers } from '../services/storage';
 import { Lock, User as UserIcon, LogIn } from 'lucide-react';
 
 interface LoginProps {
@@ -13,45 +13,59 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.DRIVER);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     const cleanIdentifier = identifier.trim().toLowerCase();
     const cleanCPF = identifier.replace(/\D/g, ''); // Remove non-digits for CPF check
 
-    // Helper to validate password against the user's stored CPF
+    // Valida a senha: usa a senha personalizada do usuário se houver;
+    // caso contrário, os 6 primeiros dígitos do CPF (comportamento padrão).
     const validatePassword = (user: User) => {
+      if (user.password && user.password.length > 0) {
+        return password === user.password;
+      }
       if (!user.cpf) return false;
       const rawStoredCpf = user.cpf.replace(/\D/g, '');
-      const expectedPassword = rawStoredCpf.substring(0, 6);
-      return password === expectedPassword;
+      return password === rawStoredCpf.substring(0, 6);
     };
 
-    let userPool: User[] = [];
-    if (selectedRole === UserRole.ADMIN) {
-      userPool = MOCK_ADMINS;
-    } else if (selectedRole === UserRole.DRIVER) {
-      userPool = MOCK_DRIVERS;
-    } else if (selectedRole === UserRole.MECHANIC) {
-      userPool = MOCK_MECHANICS;
-    }
-
-    const user = userPool.find(u => 
-      u.email.toLowerCase() === cleanIdentifier || 
-      (u.cpf && u.cpf.replace(/\D/g, '') === cleanCPF)
-    );
-
-    if (user) {
-      if (validatePassword(user)) {
-        setCurrentUser(user);
-        onLogin(user);
-      } else {
-        setError('Senha incorreta.');
+    setLoading(true);
+    try {
+      let userPool: User[] = [];
+      if (selectedRole === UserRole.ADMIN) {
+        userPool = MOCK_ADMINS;
+      } else if (selectedRole === UserRole.MECHANIC) {
+        userPool = MOCK_MECHANICS;
+      } else if (selectedRole === UserRole.DRIVER) {
+        // Motoristas agora vêm do banco (gerenciáveis pelo painel).
+        // Se o banco estiver vazio/indisponível, cai na lista fixa (fallback).
+        const dbDrivers = await fetchDrivers();
+        userPool = dbDrivers.length > 0 ? dbDrivers : MOCK_DRIVERS;
       }
-    } else {
-      setError('Usuário não encontrado. Verifique seu CPF.');
+
+      const user = userPool.find(u =>
+        u.email.toLowerCase() === cleanIdentifier ||
+        (u.cpf && u.cpf.replace(/\D/g, '') === cleanCPF)
+      );
+
+      if (user) {
+        if (validatePassword(user)) {
+          setCurrentUser(user);
+          onLogin(user);
+        } else {
+          setError('Senha incorreta.');
+        }
+      } else {
+        setError('Usuário não encontrado. Verifique seu CPF.');
+      }
+    } catch (err) {
+      setError('Erro ao entrar. Verifique sua conexão e tente novamente.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -144,10 +158,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
           <button
             type="submit"
-            className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-indigo-500/30 transform hover:-translate-y-0.5"
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-indigo-500/30 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
           >
             <LogIn className="w-5 h-5" />
-            Entrar
+            {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
         
