@@ -12,11 +12,12 @@ const EXCLUDED_VTRS = [13, 20, 25, 42];
 
 // Generate Vehicles based on user requirements: 45 VTR, 3 Cars, 2 Motos, ordered cars/motos first
 export const VEHICLES: Vehicle[] = [
-  { id: 'car-argo', name: 'Argo', type: 'CARRO' },
+  { id: 'car-argo', name: 'Argo', type: 'CARRO', refKmL: 12 }, // Fiat Argo 1.0 (~12 km/L gasolina, uso misto)
   { id: 'car-doblo', name: 'Doblô', type: 'CARRO' },
   { id: 'car-byd', name: 'BYD Dolphin', type: 'CARRO' },
 
-  ...Array.from({ length: 2 }, (_, i) => ({ id: `moto-${i+1}`, name: `Moto Apoio ${i+1}`, type: 'MOTO' as const })),
+  // Motos de apoio: Yamaha YBR 150 Factor (~40 km/L, uso misto)
+  ...Array.from({ length: 2 }, (_, i) => ({ id: `moto-${i+1}`, name: `Moto Apoio ${i+1}`, type: 'MOTO' as const, refKmL: 40 })),
 
   ...Array.from({ length: 45 }, (_, i) => i + 1)
     .filter(num => !EXCLUDED_VTRS.includes(num))

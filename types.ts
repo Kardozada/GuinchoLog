@@ -75,6 +75,8 @@ export interface Vehicle {
   id: string;
   name: string;
   type: 'VTR' | 'CARRO' | 'MOTO';
+  refKmL?: number; // Consumo de referência do modelo (km/L), usado quando não há
+                   // dados suficientes para calcular a média a partir dos abastecimentos.
 }
 
 export interface FuelRecord {
