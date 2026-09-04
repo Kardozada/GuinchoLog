@@ -188,7 +188,9 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
 
     try {
       if (typeof createImageBitmap === 'function') {
-        const bitmap = await createImageBitmap(file);
+        // resizeWidth encolhe durante a decodificação — evita abrir a foto em
+        // resolução cheia na memória (causa de estouro em celulares fracos).
+        const bitmap = await createImageBitmap(file, { resizeWidth: 1280, resizeQuality: 'medium' } as ImageBitmapOptions);
         const base64 = drawToBase64(bitmap, bitmap.width, bitmap.height);
         bitmap.close();
         return base64;
