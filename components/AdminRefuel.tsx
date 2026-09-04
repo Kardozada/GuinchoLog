@@ -234,6 +234,15 @@ const AdminRefuel: React.FC = () => {
         suspeito = num < LIMITE_MIN || num > LIMITE_MAX;
       }
 
+      // Consumo de REFERÊNCIA do modelo: quando não há um cálculo preciso e o
+      // veículo tem um valor de referência cadastrado (ex.: Argo, motos YBR),
+      // usa esse valor em vez de "indisponível" ou de uma estimativa absurda.
+      if (metodo !== "preciso" && typeof vehicle?.refKmL === "number") {
+        metodo = "referencia";
+        valorKmL = vehicle.refKmL.toFixed(2);
+        suspeito = false;
+      }
+
       return {
         vehicleId,
         vehicleName: vehicle?.name || vehicleId,
@@ -325,6 +334,10 @@ const AdminRefuel: React.FC = () => {
                             <span className="font-bold text-base text-amber-600">
                               ≈ {stat.valorKmL} km/L
                             </span>
+                          ) : stat.metodo === 'referencia' ? (
+                            <span className="font-bold text-base text-sky-600">
+                              ≈ {stat.valorKmL} km/L
+                            </span>
                           ) : (
                             <span className="font-bold text-base text-gray-400">
                               Consumo indisponível
@@ -334,6 +347,11 @@ const AdminRefuel: React.FC = () => {
                         {stat.metodo === 'estimativa' && (
                           <span className="text-[10px] text-gray-500 text-right leading-tight">
                             estimativa (poucos/nenhum tanque cheio registrado)
+                          </span>
+                        )}
+                        {stat.metodo === 'referencia' && (
+                          <span className="text-[10px] text-gray-500 text-right leading-tight">
+                            referência do modelo (sem dados para calcular)
                           </span>
                         )}
                       </div>
