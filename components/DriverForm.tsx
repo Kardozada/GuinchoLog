@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, DailyLog, ServiceItem, ExpenseItem, PaymentMethod } from '../types';
 import { VEHICLES, getLocalDate } from '../constants';
-import { saveLog, getLogsByUser } from '../services/storage';
+import { saveLog, getLogsByUser, uploadImageDataUrl } from '../services/storage';
 import { Plus, Trash2, Save, Truck, DollarSign, Clock, MapPin, Loader2, CheckCircle, Camera, Image as ImageIcon, X, FileText } from 'lucide-react';
 import Calendar from './Calendar';
 
@@ -332,6 +332,23 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
     };
 
     try {
+      // Sobe as fotos dos serviços pro Storage e guarda só a URL no documento
+      // (mantém o log leve e evita estouro de memória ao carregar a lista).
+      log.services = await Promise.all(
+        services.map(async (s) => {
+          if (s.proofImage && s.proofImage.startsWith('data:image')) {
+            try {
+              const url = await uploadImageDataUrl(`comprovantes/logs/${log.id}/${s.id}.jpg`, s.proofImage);
+              return { ...s, proofImage: url };
+            } catch (upErr) {
+              console.warn('Falha no upload da foto do serviço; mantendo embutida.', upErr);
+              return s;
+            }
+          }
+          return s;
+        })
+      );
+
       // 1. Save to Firestore
       await saveLog(log);
 
