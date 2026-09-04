@@ -81,7 +81,10 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
 
     try {
       if (typeof createImageBitmap === 'function') {
-        const bitmap = await createImageBitmap(file);
+        // resizeWidth encolhe a imagem DURANTE a decodificação (aspecto preservado),
+        // então a foto original em resolução cheia (12-108 MP) nunca é aberta
+        // inteira na memória — é o que evita o estouro em celulares fracos.
+        const bitmap = await createImageBitmap(file, { resizeWidth: 1280, resizeQuality: 'medium' } as ImageBitmapOptions);
         const base64 = drawToBase64(bitmap, bitmap.width, bitmap.height);
         bitmap.close();
         setProofImage(base64);
