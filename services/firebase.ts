@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { initializeFirestore, setLogLevel, persistentLocalCache, persistentMultipleTabManager, CACHE_SIZE_UNLIMITED } from 'firebase/firestore';
 import { getAuth, signInAnonymously } from 'firebase/auth';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   projectId: "gen-lang-client-0311459911",
@@ -30,6 +31,10 @@ export const authReady: Promise<void> = signInAnonymously(auth)
   .catch((e) => {
     console.warn('Login anônimo do Firebase falhou:', e);
   });
+
+// Firebase Storage: guarda as fotos como arquivos (só a URL vai pro documento),
+// mantendo os documentos leves e evitando estouro de memória ao carregar listas.
+export const storage = getStorage(app);
 
 // Suppress Firestore connection warnings
 setLogLevel('silent');

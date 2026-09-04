@@ -1,6 +1,17 @@
 import { DailyLog, User, FuelRecord, MaintenanceRecord } from '../types';
-import { db, authReady } from './firebase';
+import { db, authReady, storage } from './firebase';
 import { collection, doc, setDoc, getDocs, getDocsFromCache, deleteDoc, query, where } from 'firebase/firestore';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+
+// Envia uma imagem (data URL base64) para o Storage e devolve a URL de download.
+// Guardamos essa URL curta no documento em vez do base64 gigante — deixa os
+// documentos leves e evita estouro de memória ao carregar listas.
+export const uploadImageDataUrl = async (path: string, dataUrl: string): Promise<string> => {
+  await authReady;
+  const fileRef = ref(storage, path);
+  await uploadString(fileRef, dataUrl, 'data_url');
+  return getDownloadURL(fileRef);
+};
 
 const USER_KEY = 'guincholog_user';
 const LOGS_COLLECTION = 'logs';

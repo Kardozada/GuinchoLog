@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, FuelRecord } from '../types';
 import { VEHICLES, POSTOS, TIPOS_COMBUSTIVEL, getLocalDate } from '../constants';
-import { saveFuelRecord, getFuelRecordsByUser } from '../services/storage';
+import { saveFuelRecord, getFuelRecordsByUser, uploadImageDataUrl } from '../services/storage';
 import { Droplet, Calendar, Loader2, CheckCircle, Save, Camera, Image as ImageIcon, X } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -143,11 +143,20 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
       odometer: odometer ? Number(odometer) : undefined,
       tanqueCheio,
       observations,
-      proofImage: proofImage || undefined,
+      proofImage: undefined, // definido abaixo (upload da foto pro Storage)
       createdAt: new Date().toISOString()
     };
 
     try {
+      // Envia a foto pro Storage e guarda só a URL no documento (mantém leve).
+      if (proofImage && proofImage.startsWith('data:')) {
+        try {
+          record.proofImage = await uploadImageDataUrl(`comprovantes/abastecimentos/${record.id}.jpg`, proofImage);
+        } catch (upErr) {
+          console.warn('Falha no upload da foto; salvando embutida como fallback.', upErr);
+          record.proofImage = proofImage; // fallback: não perde o comprovante
+        }
+      }
       await saveFuelRecord(record);
       await loadRecords();
       resetForm();
