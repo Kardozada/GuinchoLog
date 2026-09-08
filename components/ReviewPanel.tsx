@@ -97,17 +97,18 @@ function computeFindings(logs: DailyLog[], fuels: FuelRecord[]): Finding[] {
   });
 
   // ---------- REGISTROS DIÁRIOS ----------
-  // duplicados: mesmo motorista + mesma data
+  // duplicados: mesmo motorista + mesma data + MESMO veículo.
+  // (o mesmo motorista pode rodar veículos diferentes no dia — isso é legítimo.)
   const grp: Record<string, DailyLog[]> = {};
   logs.forEach(l => {
-    const key = `${l.userId || l.driverName}||${l.date}`;
+    const key = `${l.userId || l.driverName}||${l.date}||${l.vehicleId || ''}`;
     (grp[key] = grp[key] || []).push(l);
   });
   Object.values(grp).forEach(g => {
     if (g.length > 1) {
       const l = g[0];
-      out.push({ sev: 'grave', type: 'Registro duplicado', who: `${l.driverName} · ${l.date}`, area: 'log',
-        desc: `${g.length} registros no mesmo dia para o mesmo motorista. Mantenha 1 e remova os repetidos.` });
+      out.push({ sev: 'grave', type: 'Registro duplicado', who: `${l.driverName} · ${vehicleName(l.vehicleId)} · ${l.date}`, area: 'log',
+        desc: `${g.length} registros no mesmo dia, mesmo motorista e mesmo veículo. Mantenha 1 e remova os repetidos.` });
     }
   });
 
