@@ -89,11 +89,16 @@ const AdminRefuel: React.FC = () => {
       }
       vehicleRecords[r.vehicleId].push(r);
       if (isArla(r)) {
+        // Lançamento SÓ de ARLA (tipo ADITIVO - ARLA 32)
         stats[r.vehicleId].arlaLiters += r.liters;
         stats[r.vehicleId].arlaSpent += r.total;
       } else {
+        // Combustível
         stats[r.vehicleId].totalLiters += r.liters;
         stats[r.vehicleId].totalSpent += r.total;
+        // ARLA lançado junto no mesmo abastecimento (campos à parte)
+        stats[r.vehicleId].arlaLiters += Number(r.arlaLiters) || 0;
+        stats[r.vehicleId].arlaSpent += Number(r.arlaValue) || 0;
       }
     });
 
@@ -418,12 +423,20 @@ const AdminRefuel: React.FC = () => {
                           </span>
                         </div>
                         {stat.arlaLiters > 0 && (
-                          <div className="flex justify-between pt-1 border-t border-dashed border-gray-200">
-                            <span className="text-gray-500">Aditivo ARLA 32:</span>
-                            <span className="font-semibold text-sky-700">
-                              {stat.arlaLiters.toFixed(2)} L · {stat.arlaSpent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                            </span>
-                          </div>
+                          <>
+                            <div className="flex justify-between pt-1 border-t border-dashed border-gray-200">
+                              <span className="text-gray-500">Aditivo ARLA 32:</span>
+                              <span className="font-semibold text-sky-700">
+                                {stat.arlaLiters.toFixed(2)} L · {stat.arlaSpent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </span>
+                            </div>
+                            <div className="flex justify-between pt-1 border-t border-gray-300">
+                              <span className="text-gray-700 font-medium">Total geral:</span>
+                              <span className="font-bold text-gray-900">
+                                {(stat.totalSpent + stat.arlaSpent).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </span>
+                            </div>
+                          </>
                         )}
                       </div>
                     </div>
@@ -733,6 +746,24 @@ const AdminRefuel: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Total (R$)</label>
                   <div className="w-full p-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-800 font-bold">
                     {((editingRecord.liters || 0) * (editingRecord.pricePerLiter || 0)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </div>
+                </div>
+
+                <div className="sm:col-span-2 grid grid-cols-2 gap-3 p-3 rounded-lg border border-sky-200 bg-sky-50">
+                  <div className="col-span-2 text-xs font-semibold text-sky-700">Aditivo ARLA 32 (separado do combustível — não afeta o km/L)</div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Litros de ARLA</label>
+                    <input type="number" step="0.01"
+                      value={editingRecord.arlaLiters ?? ''}
+                      onChange={(e) => setEditingRecord({...editingRecord, arlaLiters: e.target.value === '' ? undefined : Number(e.target.value)})}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Valor do ARLA (R$)</label>
+                    <input type="number" step="0.01"
+                      value={editingRecord.arlaValue ?? ''}
+                      onChange={(e) => setEditingRecord({...editingRecord, arlaValue: e.target.value === '' ? undefined : Number(e.target.value)})}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500" />
                   </div>
                 </div>
 

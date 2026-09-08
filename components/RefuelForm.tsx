@@ -21,6 +21,10 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
   const [tanqueCheio, setTanqueCheio] = useState<boolean | null>(null);
   const [observations, setObservations] = useState('');
   const [proofImage, setProofImage] = useState<string>('');
+  // ARLA 32 abastecido no mesmo evento (aditivo, opcional)
+  const [arlaOn, setArlaOn] = useState(false);
+  const [arlaLiters, setArlaLiters] = useState<number | ''>('');
+  const [arlaValue, setArlaValue] = useState<number | ''>('');
 
   // A lista de histórico só exibe um selo "Comprovante", nunca a foto em si.
   // Guardamos os registros SEM o base64 da imagem (só um booleano hasProof)
@@ -130,6 +134,11 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
       return;
     }
 
+    if (arlaOn && !arlaValue) {
+      alert('Você marcou ARLA 32 — informe o valor do ARLA (ou desmarque a opção).');
+      return;
+    }
+
     setIsSubmitting(true);
 
     const record: FuelRecord = {
@@ -146,6 +155,9 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
       odometer: odometer ? Number(odometer) : undefined,
       tanqueCheio,
       observations,
+      // ARLA como extra do mesmo abastecimento (não afeta km/L nem o total de combustível)
+      arlaLiters: arlaOn && arlaLiters ? Number(arlaLiters) : undefined,
+      arlaValue: arlaOn && arlaValue ? Number(arlaValue) : undefined,
       proofImage: undefined, // definido abaixo (upload da foto pro Storage)
       createdAt: new Date().toISOString()
     };
@@ -185,6 +197,9 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
     setTanqueCheio(null);
     setObservations('');
     setProofImage('');
+    setArlaOn(false);
+    setArlaLiters('');
+    setArlaValue('');
   };
 
   return (
@@ -318,6 +333,49 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
                   <span className="ml-3 font-medium text-gray-900">Abastecimento parcial</span>
                 </label>
               </div>
+            </div>
+
+            {/* ARLA 32 (aditivo, opcional) — mesmo abastecimento, sem odômetro/km */}
+            <div className="sm:col-span-2">
+              <button
+                type="button"
+                onClick={() => setArlaOn(v => !v)}
+                className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${arlaOn ? 'border-sky-300 bg-sky-50' : 'border-gray-200 bg-gray-50 hover:bg-gray-100'}`}
+              >
+                <span className="flex items-center gap-2 font-medium text-gray-900 text-sm">
+                  <Droplet className="w-4 h-4 text-sky-600" />
+                  Abasteci ARLA 32 também
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-sky-700 bg-white border border-sky-200 px-1.5 py-0.5 rounded-full">aditivo</span>
+                </span>
+                <span className={`w-10 h-6 rounded-full relative transition-colors flex-none ${arlaOn ? 'bg-sky-500' : 'bg-gray-300'}`}>
+                  <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${arlaOn ? 'left-[18px]' : 'left-0.5'}`}></span>
+                </span>
+              </button>
+              {arlaOn && (
+                <div className="mt-3 grid grid-cols-2 gap-3 p-3 rounded-lg border border-sky-200 bg-sky-50">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Litros de ARLA</label>
+                    <input
+                      type="number" step="0.01" inputMode="decimal"
+                      value={arlaLiters}
+                      onChange={(e) => setArlaLiters(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="Ex: 20"
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Valor do ARLA (R$)</label>
+                    <input
+                      type="number" step="0.01" inputMode="decimal"
+                      value={arlaValue}
+                      onChange={(e) => setArlaValue(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="Ex: 140,00"
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                    />
+                  </div>
+                  <p className="col-span-2 text-xs text-sky-700">Não usa odômetro e não afeta o km/L — entra separado no relatório.</p>
+                </div>
+              )}
             </div>
 
             <div className="sm:col-span-2">

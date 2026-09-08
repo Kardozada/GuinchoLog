@@ -96,6 +96,10 @@ export interface FuelRecord {
   tanqueCheioInferido?: boolean;
   createdAt: string;
   proofImage?: string; // Base64 string of the fuel receipt
+  // ARLA 32 abastecido no MESMO evento (aditivo, não combustível). Fica à parte:
+  // não usa odômetro nem entra no km/L; só soma nos totais de aditivo.
+  arlaLiters?: number;
+  arlaValue?: number;
 }
 export interface MaintenanceRecord {
   id: string;
