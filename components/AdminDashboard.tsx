@@ -8,6 +8,7 @@ import { Bot, FileText, Search, TrendingUp, RefreshCw, AlertTriangle, X, Copy, C
 import ReactMarkdown from 'react-markdown';
 import AdminRefuel from './AdminRefuel';
 import DriverManagement from './DriverManagement';
+import ReviewPanel from './ReviewPanel';
 import AdminMaintenance from './AdminMaintenance';
 
 // --- GAS SCRIPT ATUALIZADO (Suporte a Update/Upsert) ---
@@ -103,7 +104,7 @@ function setup() {
   }
 }`;
 
-type TabView = 'overview' | 'dates' | 'drivers' | 'cash' | 'refuel' | 'maintenance' | 'register';
+type TabView = 'overview' | 'dates' | 'drivers' | 'cash' | 'refuel' | 'maintenance' | 'register' | 'review';
 
 const AdminDashboard: React.FC = () => {
   const [logs, setLogs] = useState<DailyLog[]>([]);
@@ -1284,6 +1285,13 @@ const AdminDashboard: React.FC = () => {
             <UserIcon className="w-4 h-4" />
             Cadastro
           </button>
+          <button
+            onClick={() => setActiveTab('review')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'review' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            <AlertTriangle className="w-4 h-4" />
+            Revisão
+          </button>
        </div>
 
        {/* Content */}
@@ -1295,6 +1303,7 @@ const AdminDashboard: React.FC = () => {
           {activeTab === 'refuel' && <AdminRefuel />}
           {activeTab === 'maintenance' && <AdminMaintenance />}
           {activeTab === 'register' && <DriverManagement />}
+          {activeTab === 'review' && <ReviewPanel onGoTo={(area) => setActiveTab(area === 'refuel' ? 'refuel' : 'dates')} />}
        </div>
 
        {/* Modals */}
