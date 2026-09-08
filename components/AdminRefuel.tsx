@@ -76,22 +76,32 @@ const AdminRefuel: React.FC = () => {
   const getVehicleStats = () => {
     // Group records by vehicleId
     const vehicleRecords: Record<string, FuelRecord[]> = {};
-    const stats: Record<string, { totalLiters: number, totalSpent: number }> = {};
-    
+    const stats: Record<string, { totalLiters: number, totalSpent: number, arlaLiters: number, arlaSpent: number }> = {};
+
+    // ARLA 32 é aditivo (ureia), NÃO combustível: não entra em litros/gasto de
+    // combustível nem no cálculo de km/L. É contabilizado à parte.
+    const isArla = (r: FuelRecord) => (r.fuelType || '').toUpperCase().includes('ARLA');
+
     filteredRecords.forEach(r => {
       if (!vehicleRecords[r.vehicleId]) {
         vehicleRecords[r.vehicleId] = [];
-        stats[r.vehicleId] = { totalLiters: 0, totalSpent: 0 };
+        stats[r.vehicleId] = { totalLiters: 0, totalSpent: 0, arlaLiters: 0, arlaSpent: 0 };
       }
       vehicleRecords[r.vehicleId].push(r);
-      stats[r.vehicleId].totalLiters += r.liters;
-      stats[r.vehicleId].totalSpent += r.total;
+      if (isArla(r)) {
+        stats[r.vehicleId].arlaLiters += r.liters;
+        stats[r.vehicleId].arlaSpent += r.total;
+      } else {
+        stats[r.vehicleId].totalLiters += r.liters;
+        stats[r.vehicleId].totalSpent += r.total;
+      }
     });
 
     const result = Object.entries(vehicleRecords).map(([vehicleId, records]) => {
       const vehicle = VEHICLES.find(v => v.id === vehicleId);
       
-      const lista = [...records].sort((a, b) => {
+      // Exclui ARLA do cálculo de consumo (km/L): não é combustível.
+      const lista = [...records].filter(r => !isArla(r)).sort((a, b) => {
         const dA = new Date(a.date).getTime();
         const dB = new Date(b.date).getTime();
         if (dA !== dB) return dA - dB;
@@ -248,6 +258,8 @@ const AdminRefuel: React.FC = () => {
         vehicleName: vehicle?.name || vehicleId,
         totalLiters: stats[vehicleId].totalLiters,
         totalSpent: stats[vehicleId].totalSpent,
+        arlaLiters: stats[vehicleId].arlaLiters,
+        arlaSpent: stats[vehicleId].arlaSpent,
         mediaGeral,
         metodo,
         valorKmL,
@@ -396,15 +408,23 @@ const AdminRefuel: React.FC = () => {
 
                       <div className="pt-2 border-t border-gray-200 mt-2 space-y-1">
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Total Abastecido:</span>
+                          <span className="text-gray-500">Combustível:</span>
                           <span className="font-semibold">{stat.totalLiters.toFixed(2)} L</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-500">Gasto Total:</span>
+                          <span className="text-gray-500">Gasto (combustível):</span>
                           <span className="font-semibold text-red-600">
                             {stat.totalSpent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                           </span>
                         </div>
+                        {stat.arlaLiters > 0 && (
+                          <div className="flex justify-between pt-1 border-t border-dashed border-gray-200">
+                            <span className="text-gray-500">Aditivo ARLA 32:</span>
+                            <span className="font-semibold text-sky-700">
+                              {stat.arlaLiters.toFixed(2)} L · {stat.arlaSpent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
