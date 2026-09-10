@@ -5,7 +5,7 @@ import { fetchFuelRecords, deleteFuelRecord, saveFuelRecord, getCurrentUser } fr
 import { Droplet, Calendar, Loader2, Edit2, Trash2, User as UserIcon, X, Search, BarChart3, Save, Image as ImageIcon, ChevronUp, ChevronDown, Plus } from 'lucide-react';
 import RefuelForm from './RefuelForm';
 
-const AdminRefuel: React.FC = () => {
+const AdminRefuel: React.FC<{ focusRecordId?: string; onFocusConsumed?: () => void }> = ({ focusRecordId, onFocusConsumed }) => {
   const [records, setRecords] = useState<FuelRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAddingNew, setIsAddingNew] = useState(false);
@@ -24,6 +24,16 @@ const AdminRefuel: React.FC = () => {
   useEffect(() => {
     loadRecords();
   }, []);
+
+  // Vindo do Painel de Revisão: abre direto o abastecimento apontado como erro.
+  useEffect(() => {
+    if (!focusRecordId || records.length === 0) return;
+    const rec = records.find(r => r.id === focusRecordId);
+    if (rec) {
+      setEditingRecord(rec);
+      onFocusConsumed?.();
+    }
+  }, [focusRecordId, records]);
 
   const loadRecords = async () => {
     setIsLoading(true);

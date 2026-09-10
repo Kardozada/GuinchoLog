@@ -140,6 +140,25 @@ const AdminDashboard: React.FC = () => {
   const [editingLog, setEditingLog] = useState<DailyLog | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
+  // Deep-link do Painel de Revisão: qual abastecimento abrir na aba de Abastecimento
+  const [refuelFocusId, setRefuelFocusId] = useState<string | undefined>(undefined);
+
+  // Recebe o "Abrir registro" do Painel de Revisão e leva ao lugar certo.
+  const handleReviewGoTo = (area: 'refuel' | 'log', recordId?: string) => {
+    if (area === 'refuel') {
+      setActiveTab('refuel');
+      setRefuelFocusId(recordId);
+      return;
+    }
+    // area === 'log': abre o registro diário direto na edição (modal global)
+    const log = recordId ? logs.find(l => l.id === recordId) : null;
+    if (log) {
+      handleEditClick(log);
+    } else {
+      setActiveTab('dates');
+    }
+  };
+
   // --- Data Loading ---
   const loadData = async () => {
     setLoadingData(true);
@@ -1300,10 +1319,10 @@ const AdminDashboard: React.FC = () => {
           {activeTab === 'dates' && renderByDate()}
           {activeTab === 'drivers' && renderDrivers()}
           {activeTab === 'cash' && renderCashServices()}
-          {activeTab === 'refuel' && <AdminRefuel />}
+          {activeTab === 'refuel' && <AdminRefuel focusRecordId={refuelFocusId} onFocusConsumed={() => setRefuelFocusId(undefined)} />}
           {activeTab === 'maintenance' && <AdminMaintenance />}
           {activeTab === 'register' && <DriverManagement />}
-          {activeTab === 'review' && <ReviewPanel onGoTo={(area) => setActiveTab(area === 'refuel' ? 'refuel' : 'dates')} />}
+          {activeTab === 'review' && <ReviewPanel onGoTo={handleReviewGoTo} />}
        </div>
 
        {/* Modals */}
