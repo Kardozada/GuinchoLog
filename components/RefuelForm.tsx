@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, FuelRecord } from '../types';
 import { VEHICLES, POSTOS, TIPOS_COMBUSTIVEL, getLocalDate } from '../constants';
-import { saveFuelRecord, getFuelRecordsByUser, uploadImageDataUrl } from '../services/storage';
+import { saveFuelRecord, getFuelRecordsByUser, getFuelRecordsByVehicle, uploadImageDataUrl } from '../services/storage';
 import { Droplet, Calendar, Loader2, CheckCircle, Save, Camera, Image as ImageIcon, X, AlertTriangle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -26,6 +26,11 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
   const [arlaLiters, setArlaLiters] = useState<number | ''>('');
   const [arlaValue, setArlaValue] = useState<number | ''>('');
 
+  // Último odômetro registrado para o veículo escolhido (regra: não pode retroceder).
+  const [lastOdo, setLastOdo] = useState<number | null>(null);
+  const [lastOdoDate, setLastOdoDate] = useState<string>('');
+  const [overrideOdo, setOverrideOdo] = useState(false);
+
   // A lista de histórico só exibe um selo "Comprovante", nunca a foto em si.
   // Guardamos os registros SEM o base64 da imagem (só um booleano hasProof)
   // para não acumular megabytes de fotos na memória e travar o navegador.
@@ -39,6 +44,26 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
   useEffect(() => {
     loadRecords();
   }, [user.id]);
+
+  // Ao escolher o veículo, busca o último odômetro registrado dele (para impedir
+  // que o novo valor seja menor que o anterior). Considera só registros de
+  // combustível (ARLA não tem odômetro) com odômetro válido.
+  useEffect(() => {
+    setOverrideOdo(false);
+    if (!vehicleId) { setLastOdo(null); setLastOdoDate(''); return; }
+    let cancelled = false;
+    (async () => {
+      const recs = await getFuelRecordsByVehicle(vehicleId);
+      if (cancelled) return;
+      const withOdo = recs.filter(r => Number(r.odometer) > 0);
+      if (withOdo.length === 0) { setLastOdo(null); setLastOdoDate(''); return; }
+      // "Anterior" = maior odômetro já registrado (o hodômetro só sobe).
+      const top = withOdo.reduce((a, b) => (Number(b.odometer) > Number(a.odometer) ? b : a));
+      setLastOdo(Number(top.odometer));
+      setLastOdoDate(top.date || '');
+    })();
+    return () => { cancelled = true; };
+  }, [vehicleId]);
 
   const loadRecords = async () => {
     setIsLoading(true);
@@ -122,9 +147,11 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
     ? liters * pricePerLiter
     : 0;
 
-  // A exigência de 6 dígitos no odômetro vale para caminhões (VTR). Motos e
-  // carros rodam com quilometragem menor (5 dígitos), então não recebem o aviso.
-  const isTruck = vehicleId.startsWith('vtr-');
+  // Regra do odômetro: no máximo 6 dígitos (cortado na digitação) e nunca menor
+  // que o último já registrado para o veículo — o hodômetro só sobe.
+  const odoNum = typeof odometer === 'number' ? odometer : null;
+  const odoBelowLast = odoNum != null && lastOdo != null && odoNum < lastOdo;
+  const fmtKm = (n: number) => n.toLocaleString('pt-BR');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,6 +167,11 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
 
     if (arlaOn && !arlaValue) {
       alert('Você marcou ARLA 32 — informe o valor do ARLA (ou desmarque a opção).');
+      return;
+    }
+
+    if (odoBelowLast && !overrideOdo) {
+      alert(`O odômetro (${fmtKm(odoNum!)} km) está menor que o último registrado deste veículo (${fmtKm(lastOdo!)} km). Confira o valor. Se estiver certo mesmo assim, marque a confirmação abaixo do campo.`);
       return;
     }
 
@@ -204,6 +236,9 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
     setArlaOn(false);
     setArlaLiters('');
     setArlaValue('');
+    setOverrideOdo(false);
+    setLastOdo(null);
+    setLastOdoDate('');
   };
 
   return (
@@ -322,18 +357,30 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
                   // clássico "dígito a mais" (ex.: 6.000.000 km).
                   const val = e.target.value.replace(/\D/g, '').slice(0, 6);
                   setOdometer(val === '' ? '' : Number(val));
+                  setOverrideOdo(false); // mudou o número → pede confirmação de novo se ainda estiver baixo
                 }}
                 placeholder="Ex: 154000"
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className={`w-full p-2 border rounded-lg focus:ring-2 focus:border-transparent ${odoBelowLast ? 'border-red-400 focus:ring-red-500 bg-red-50' : 'border-gray-300 focus:ring-indigo-500'}`}
               />
-              {isTruck && odometer !== '' && String(odometer).length < 6 && (
-                <p className="mt-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 flex items-start gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 flex-none mt-0.5" />
-                  <span>
-                    Odômetro com <strong>{String(odometer).length} dígito{String(odometer).length > 1 ? 's' : ''}</strong> — caminhão normalmente tem <strong>6</strong>.
-                    Confira se não faltou um número. Se estiver certo mesmo assim, pode enviar.
-                  </span>
+              {lastOdo != null && !odoBelowLast && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Último registrado deste veículo: <strong>{fmtKm(lastOdo)} km</strong>{lastOdoDate ? ` (${lastOdoDate})` : ''}.
                 </p>
+              )}
+              {odoBelowLast && (
+                <div className="mt-1.5 text-xs text-red-800 bg-red-50 border border-red-300 rounded-md px-2 py-2 space-y-2">
+                  <p className="flex items-start gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 flex-none mt-0.5" />
+                    <span>
+                      Odômetro <strong>{fmtKm(odoNum!)} km</strong> é menor que o último registrado
+                      (<strong>{fmtKm(lastOdo!)} km</strong>{lastOdoDate ? ` em ${lastOdoDate}` : ''}). O hodômetro não anda pra trás — confira se não faltou ou trocou um número.
+                    </span>
+                  </p>
+                  <label className="flex items-center gap-2 cursor-pointer font-medium">
+                    <input type="checkbox" checked={overrideOdo} onChange={(e) => setOverrideOdo(e.target.checked)} className="rounded text-red-600 focus:ring-red-500 w-4 h-4" />
+                    Confirmo que o valor está correto assim mesmo
+                  </label>
+                </div>
               )}
             </div>
 
