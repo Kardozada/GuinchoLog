@@ -738,11 +738,6 @@ const AdminRefuel: React.FC<{ focusRecordId?: string; onFocusConsumed?: () => vo
                     }}
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                   />
-                  {(editingRecord.vehicleId || '').startsWith('vtr-') && editingRecord.odometer && String(editingRecord.odometer).length < 6 && (
-                    <p className="mt-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
-                      Odômetro com {String(editingRecord.odometer).length} dígitos — caminhão normalmente tem 6. Confira.
-                    </p>
-                  )}
                 </div>
                 
                 <div className="sm:col-span-2">

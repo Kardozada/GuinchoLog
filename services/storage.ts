@@ -264,6 +264,26 @@ export const getFuelRecordsByUser = async (userId: string): Promise<FuelRecord[]
   }
 };
 
+// Busca os abastecimentos de um veículo (mais recente primeiro). Usado no
+// formulário para saber o último odômetro registrado e impedir retrocesso.
+export const getFuelRecordsByVehicle = async (vehicleId: string): Promise<FuelRecord[]> => {
+  try {
+    const q = query(collection(db, FUELS_COLLECTION), where("vehicleId", "==", vehicleId));
+    const snap = await getDocsSmart(q, `fuels_veh_${vehicleId}`);
+    const records: FuelRecord[] = [];
+    snap.forEach((d) => records.push(d.data() as FuelRecord));
+    return records.sort((a, b) => {
+      const da = new Date(a.date).getTime();
+      const dbt = new Date(b.date).getTime();
+      if (dbt !== da) return dbt - da;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  } catch (e) {
+    handleFirestoreError(e, OperationType.GET, FUELS_COLLECTION);
+    return [];
+  }
+};
+
 export const deleteFuelRecord = async (recordId: string): Promise<void> => {
   const path = `${FUELS_COLLECTION}/${recordId}`;
   try {
