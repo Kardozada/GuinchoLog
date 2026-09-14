@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, FuelRecord } from '../types';
 import { VEHICLES, POSTOS, TIPOS_COMBUSTIVEL, getLocalDate } from '../constants';
 import { saveFuelRecord, getFuelRecordsByUser, uploadImageDataUrl } from '../services/storage';
-import { Droplet, Calendar, Loader2, CheckCircle, Save, Camera, Image as ImageIcon, X } from 'lucide-react';
+import { Droplet, Calendar, Loader2, CheckCircle, Save, Camera, Image as ImageIcon, X, AlertTriangle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 interface RefuelFormProps {
@@ -118,9 +118,13 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
     }
   };
 
-  const total = (typeof liters === 'number' && typeof pricePerLiter === 'number') 
-    ? liters * pricePerLiter 
+  const total = (typeof liters === 'number' && typeof pricePerLiter === 'number')
+    ? liters * pricePerLiter
     : 0;
+
+  // A exigência de 6 dígitos no odômetro vale para caminhões (VTR). Motos e
+  // carros rodam com quilometragem menor (5 dígitos), então não recebem o aviso.
+  const isTruck = vehicleId.startsWith('vtr-');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -311,14 +315,26 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
                 type="text"
                 inputMode="numeric"
                 required
+                maxLength={6}
                 value={odometer}
                 onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, '');
+                  // Máximo 6 dígitos (só número). Corta qualquer excesso — evita o
+                  // clássico "dígito a mais" (ex.: 6.000.000 km).
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 6);
                   setOdometer(val === '' ? '' : Number(val));
                 }}
                 placeholder="Ex: 154000"
                 className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
+              {isTruck && odometer !== '' && String(odometer).length < 6 && (
+                <p className="mt-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 flex items-start gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-none mt-0.5" />
+                  <span>
+                    Odômetro com <strong>{String(odometer).length} dígito{String(odometer).length > 1 ? 's' : ''}</strong> — caminhão normalmente tem <strong>6</strong>.
+                    Confira se não faltou um número. Se estiver certo mesmo assim, pode enviar.
+                  </span>
+                </p>
+              )}
             </div>
 
             <div className="sm:col-span-2">
