@@ -33,8 +33,8 @@ const Calendar: React.FC<CalendarProps> = ({ logs }) => {
   const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
 
   const logsByDate = useMemo(() => {
-    const map: Record<string, 'paid' | 'success'> = {};
-    
+    const map: Record<string, 'paid' | 'hudson' | 'success'> = {};
+
     // Group logs by date first
     const grouped: Record<string, DailyLog[]> = {};
     logs.forEach(log => {
@@ -42,11 +42,14 @@ const Calendar: React.FC<CalendarProps> = ({ logs }) => {
       grouped[log.date].push(log);
     });
 
-    // Determine status for each date
+    // Determine status for each date.
+    // André (pagamento) = azul e é o acerto final, então prevalece se os dois
+    // anotarem. Hudson (serviços) = cinza. Sem anotação = verde (preenchido).
     Object.keys(grouped).forEach(date => {
       const dayLogs = grouped[date];
       const allPaid = dayLogs.every(l => l.checkedAndre);
-      map[date] = allPaid ? 'paid' : 'success';
+      const allHudson = dayLogs.every(l => l.checkedHudson);
+      map[date] = allPaid ? 'paid' : allHudson ? 'hudson' : 'success';
     });
     
     return map;
@@ -134,6 +137,10 @@ const Calendar: React.FC<CalendarProps> = ({ logs }) => {
             <span>Preenchido</span>
           </div>
           <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+            <span>Anotado por Hudson</span>
+          </div>
+          <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded-full bg-blue-500"></div>
             <span>Anotado por André</span>
           </div>
@@ -166,6 +173,7 @@ const Calendar: React.FC<CalendarProps> = ({ logs }) => {
               className={`
                 aspect-square flex flex-col items-center justify-center rounded-lg border transition-all relative
                 ${status === 'success' ? 'bg-green-500 border-green-600 text-white shadow-sm cursor-pointer hover:scale-105' : ''}
+                ${status === 'hudson' ? 'bg-gray-400 border-gray-500 text-white shadow-sm cursor-pointer hover:scale-105' : ''}
                 ${status === 'paid' ? 'bg-blue-500 border-blue-600 text-white shadow-sm cursor-pointer hover:scale-105' : ''}
                 ${status === 'missing' ? 'bg-red-500 border-red-600 text-white shadow-sm' : ''}
                 ${status === 'future' ? 'bg-gray-50 border-gray-100 text-gray-300' : ''}
@@ -174,6 +182,7 @@ const Calendar: React.FC<CalendarProps> = ({ logs }) => {
             >
               <span className="text-sm font-bold">{day}</span>
               {status === 'success' && <CheckCircle2 className="w-3 h-3 mt-1 opacity-80" />}
+              {status === 'hudson' && <CheckCircle2 className="w-3 h-3 mt-1 opacity-80" />}
               {status === 'paid' && <CheckCircle2 className="w-3 h-3 mt-1 opacity-80" />}
               {status === 'missing' && <XCircle className="w-3 h-3 mt-1 opacity-80" />}
             </div>
