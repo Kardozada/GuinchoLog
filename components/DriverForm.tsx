@@ -584,6 +584,21 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
           </div>
         </div>
 
+        {/* Submit Action (acima das Despesas, a pedido) */}
+        <div className="mt-8 pt-4 border-t flex justify-end">
+           <button
+             onClick={handleSubmit}
+             disabled={isSubmitting}
+             className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:scale-100"
+           >
+             {isSubmitting ? (
+               <><Loader2 className="w-5 h-5 animate-spin" /> Enviando...</>
+             ) : (
+               <><Save className="w-5 h-5" /> {existingLogId ? 'Atualizar Relatório' : 'Enviar Relatório'}</>
+             )}
+           </button>
+        </div>
+
         {/* Expenses & Observations */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 border-t pt-6">
            <div>
@@ -668,21 +683,6 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
                  </div>
               </div>
            </div>
-        </div>
-
-        {/* Submit Action */}
-        <div className="mt-8 pt-4 border-t flex justify-end">
-           <button 
-             onClick={handleSubmit}
-             disabled={isSubmitting}
-             className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:scale-100"
-           >
-             {isSubmitting ? (
-               <><Loader2 className="w-5 h-5 animate-spin" /> Enviando...</>
-             ) : (
-               <><Save className="w-5 h-5" /> {existingLogId ? 'Atualizar Relatório' : 'Enviar Relatório'}</>
-             )}
-           </button>
         </div>
 
       </div>
