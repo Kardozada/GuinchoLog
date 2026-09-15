@@ -27,6 +27,11 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
   const [userLogs, setUserLogs] = useState<DailyLog[]>([]);
   const [savedServiceIds, setSavedServiceIds] = useState<Set<string>>(new Set());
   const [savedExpenseIds, setSavedExpenseIds] = useState<Set<string>>(new Set());
+  // Texto cru digitado no campo de valor de cada serviço. Guardamos separado do
+  // número para permitir vírgula decimal no celular sem o navegador zerar o
+  // valor (o antigo type="number" descartava "150,00" e travava o envio).
+  const [valueInputs, setValueInputs] = useState<Record<string, string>>({});
+  const [expenseValueInputs, setExpenseValueInputs] = useState<Record<string, string>>({});
   const [existingLogId, setExistingLogId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -260,11 +265,23 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
     setServices(services.filter(s => s.id !== id));
   };
 
+  // Converte "150,00", "150.00", "1.500,00" ou "1500" em número de verdade.
+  const parseBRNumber = (raw: string): number => {
+    let s = (raw || '').replace(/[^\d.,-]/g, '');
+    if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); // vírgula = decimal; ponto = milhar
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  };
+
   const updateService = (id: string, field: keyof ServiceItem, value: any) => {
     setServices(services.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
 
   const handlePaymentChange = (id: string, method: PaymentMethod) => {
+    if (method === PaymentMethod.ON_TERM) {
+      // Zera o texto digitado para o campo (que fica desabilitado em "A Prazo").
+      setValueInputs(prev => { const n = { ...prev }; delete n[id]; return n; });
+    }
     setServices(services.map(s => {
       if (s.id === id) {
         return {
@@ -515,12 +532,17 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
                      {/* Value */}
                      <div>
                       <label className="text-xs text-gray-500 font-medium">Valor (R$)</label>
-                      <input 
-                        type="number" 
-                        placeholder={service.paymentMethod === PaymentMethod.ON_TERM ? "Bloqueado" : "0.00"}
-                        value={service.value === 0 ? '' : service.value} 
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder={service.paymentMethod === PaymentMethod.ON_TERM ? "Bloqueado" : "0,00"}
+                        value={valueInputs[service.id] ?? (service.value ? String(service.value).replace('.', ',') : '')}
                         disabled={isSaved || service.paymentMethod === PaymentMethod.ON_TERM}
-                        onChange={(e) => updateService(service.id, 'value', Number(e.target.value))} 
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          setValueInputs(prev => ({ ...prev, [service.id]: raw }));
+                          updateService(service.id, 'value', parseBRNumber(raw));
+                        }}
                         className={`w-full p-2 text-sm border rounded mt-1 font-semibold transition-colors 
                           ${isSaved || service.paymentMethod === PaymentMethod.ON_TERM 
                             ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
@@ -618,12 +640,17 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
                       onChange={(e) => setExpenses(expenses.map(ex => ex.id === expense.id ? { ...ex, description: e.target.value} : ex))}
                       className={`flex-1 p-2 text-sm border border-gray-300 rounded text-gray-900 ${isSavedExpense ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
                      />
-                     <input 
-                      type="number" 
-                      placeholder="R$" 
-                      value={expense.value === 0 ? '' : expense.value}
+                     <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="R$"
+                      value={expenseValueInputs[expense.id] ?? (expense.value ? String(expense.value).replace('.', ',') : '')}
                       disabled={isSavedExpense}
-                      onChange={(e) => setExpenses(expenses.map(ex => ex.id === expense.id ? { ...ex, value: Number(e.target.value)} : ex))}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setExpenseValueInputs(prev => ({ ...prev, [expense.id]: raw }));
+                        setExpenses(expenses.map(ex => ex.id === expense.id ? { ...ex, value: parseBRNumber(raw)} : ex));
+                      }}
                       className={`w-24 p-2 text-sm border border-gray-300 rounded text-gray-900 ${isSavedExpense ? 'bg-gray-100 cursor-not-allowed font-semibold' : 'bg-white'}`}
                      />
                      {!isSavedExpense && (
