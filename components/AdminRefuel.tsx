@@ -5,6 +5,14 @@ import { fetchFuelRecords, deleteFuelRecord, saveFuelRecord, getCurrentUser } fr
 import { Droplet, Calendar, Loader2, Edit2, Trash2, User as UserIcon, X, Search, BarChart3, Save, Image as ImageIcon, ChevronUp, ChevronDown, Plus } from 'lucide-react';
 import RefuelForm from './RefuelForm';
 
+// Helpers de data (formato ISO YYYY-MM-DD, igual ao campo `date` dos registros).
+const _pad = (n: number) => String(n).padStart(2, '0');
+const _toISO = (d: Date) => `${d.getFullYear()}-${_pad(d.getMonth() + 1)}-${_pad(d.getDate())}`;
+const monthStartISO = () => { const d = new Date(); return `${d.getFullYear()}-${_pad(d.getMonth() + 1)}-01`; };
+const todayISO = () => _toISO(new Date());
+const daysAgoISO = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return _toISO(d); };
+const monthLabel = () => { const s = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }); return s.charAt(0).toUpperCase() + s.slice(1); };
+
 const AdminRefuel: React.FC<{ focusRecordId?: string; onFocusConsumed?: () => void }> = ({ focusRecordId, onFocusConsumed }) => {
   const [records, setRecords] = useState<FuelRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -12,8 +20,10 @@ const AdminRefuel: React.FC<{ focusRecordId?: string; onFocusConsumed?: () => vo
 
   // Filters
   const [filterVehicle, setFilterVehicle] = useState('');
-  const [filterStartDate, setFilterStartDate] = useState('');
-  const [filterEndDate, setFilterEndDate] = useState('');
+  // Período: abre no mês atual por padrão (evita confundir com o acumulado de sempre).
+  const [period, setPeriod] = useState<'mes' | 'd30' | 'tudo' | 'custom'>('mes');
+  const [filterStartDate, setFilterStartDate] = useState(monthStartISO());
+  const [filterEndDate, setFilterEndDate] = useState(todayISO());
 
   // Editing state
   const [editingRecord, setEditingRecord] = useState<FuelRecord | null>(null);
@@ -300,6 +310,19 @@ const AdminRefuel: React.FC<{ focusRecordId?: string; onFocusConsumed?: () => vo
   };
 
   const stats = getVehicleStats();
+
+  // Atalhos de período: preenchem o intervalo de datas usado nos filtros.
+  const applyPeriod = (p: 'mes' | 'd30' | 'tudo') => {
+    setPeriod(p);
+    if (p === 'mes') { setFilterStartDate(monthStartISO()); setFilterEndDate(todayISO()); }
+    else if (p === 'd30') { setFilterStartDate(daysAgoISO(30)); setFilterEndDate(todayISO()); }
+    else { setFilterStartDate(''); setFilterEndDate(''); }
+  };
+  const periodLabel =
+    period === 'mes' ? monthLabel()
+    : period === 'd30' ? 'Últimos 30 dias'
+    : period === 'tudo' ? 'Desde o início'
+    : 'Período personalizado';
   
   const cycleMap = new Map();
   stats.forEach(s => {
@@ -327,9 +350,12 @@ const AdminRefuel: React.FC<{ focusRecordId?: string; onFocusConsumed?: () => vo
       {/* Resumo / Relatório */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-4 sm:p-6 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <BarChart3 className="w-6 h-6 text-indigo-600" />
             <h2 className="text-lg font-bold text-gray-900">Média de Consumo por Caminhão</h2>
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-700 bg-white border border-indigo-200 rounded-full px-2.5 py-1">
+              <Calendar className="w-3.5 h-3.5" /> {periodLabel}
+            </span>
           </div>
           <button 
             onClick={() => setShowConsumption(!showConsumption)}
@@ -463,6 +489,19 @@ const AdminRefuel: React.FC<{ focusRecordId?: string; onFocusConsumed?: () => vo
         <div className="p-4 border-b border-gray-100 flex items-center gap-2 text-gray-700 font-medium bg-gray-50">
           <Search className="w-5 h-5 text-gray-500" /> Filtros
         </div>
+        {/* Atalhos de período */}
+        <div className="px-4 pt-4 flex flex-wrap gap-2">
+          {([['mes', 'Mês atual'], ['d30', 'Últimos 30 dias'], ['tudo', 'Tudo']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => applyPeriod(key)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${period === key ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Veículo</label>
@@ -482,7 +521,7 @@ const AdminRefuel: React.FC<{ focusRecordId?: string; onFocusConsumed?: () => vo
             <input
               type="date"
               value={filterStartDate}
-              onChange={e => setFilterStartDate(e.target.value)}
+              onChange={e => { setFilterStartDate(e.target.value); setPeriod('custom'); }}
               className="w-full p-2 border border-gray-300 rounded-lg text-sm"
             />
           </div>
@@ -491,7 +530,7 @@ const AdminRefuel: React.FC<{ focusRecordId?: string; onFocusConsumed?: () => vo
             <input
               type="date"
               value={filterEndDate}
-              onChange={e => setFilterEndDate(e.target.value)}
+              onChange={e => { setFilterEndDate(e.target.value); setPeriod('custom'); }}
               className="w-full p-2 border border-gray-300 rounded-lg text-sm"
             />
           </div>
