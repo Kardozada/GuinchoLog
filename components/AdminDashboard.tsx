@@ -509,7 +509,7 @@ const AdminDashboard: React.FC = () => {
 
   const addExpenseInEdit = () => {
     if (!editingLog) return;
-    setEditingLog({ ...editingLog, expenses: [...editingLog.expenses, { id: Math.random().toString(36).substr(2, 9), description: '', value: 0 }] });
+    setEditingLog({ ...editingLog, expenses: [...editingLog.expenses, { id: Math.random().toString(36).substr(2, 9), description: '', value: 0, createdAt: new Date().toISOString() }] });
   };
 
   // --- Components ---
@@ -620,9 +620,37 @@ const AdminDashboard: React.FC = () => {
           <div className="bg-white p-3 rounded border border-gray-100">
             <span className="text-gray-500 block text-xs uppercase font-bold">Despesas</span>
             <p className="text-red-600 font-medium mt-1">Total: R$ {log.totalExpenses.toFixed(2)}</p>
-            <ul className="text-xs text-gray-400 mt-1">
-              {(log.expenses || []).map((e, i) => <li key={i}>• {e.description}: R$ {e.value}</li>)}
-            </ul>
+            <div className="mt-2 space-y-1">
+              {(log.expenses || [])
+                .filter(e => (e.description || '').trim() !== '' || (Number(e.value) || 0) !== 0)
+                .map((e, i) => {
+                  const reg = e.createdAt ? new Date(e.createdAt) : null;
+                  // Dia (local) em que foi registrada x dia do serviço
+                  const regDay = reg ? `${reg.getFullYear()}-${String(reg.getMonth() + 1).padStart(2, '0')}-${String(reg.getDate()).padStart(2, '0')}` : null;
+                  const diasDepois = regDay && regDay > log.date
+                    ? Math.round((new Date(regDay + 'T12:00:00').getTime() - new Date(log.date + 'T12:00:00').getTime()) / 86400000)
+                    : 0;
+                  const late = diasDepois > 0;
+                  return (
+                    <div key={i} className={`flex justify-between items-start gap-2 rounded-md px-2 py-1 text-xs ${late ? 'bg-amber-50 border border-amber-300' : ''}`}>
+                      <div className="min-w-0">
+                        <span className="font-semibold text-gray-700">{e.description || '(sem descrição)'}</span>
+                        <span className="text-gray-500"> · R$ {(Number(e.value) || 0).toFixed(2)}</span>
+                        {late && (
+                          <div className="text-[11px] font-semibold text-amber-700">
+                            ⚠ lançada {diasDepois} dia{diasDepois > 1 ? 's' : ''} depois do serviço
+                          </div>
+                        )}
+                      </div>
+                      <span className={`whitespace-nowrap tabular-nums ${late ? 'text-amber-700 font-bold' : 'text-gray-400'}`}>
+                        {reg
+                          ? `${reg.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} · ${reg.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+                          : '–'}
+                      </span>
+                    </div>
+                  );
+                })}
+            </div>
           </div>
           <div className="bg-white p-3 rounded border border-gray-100">
             <span className="text-gray-500 block text-xs uppercase font-bold">Observações</span>

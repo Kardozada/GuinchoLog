@@ -42,6 +42,7 @@ export interface ExpenseItem {
   id: string;
   description: string;
   value: number;
+  createdAt?: string; // Quando a despesa entrou no sistema (envio em que foi registrada)
 }
 
 export interface EditHistoryEntry {
