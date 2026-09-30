@@ -35,6 +35,7 @@ export interface ServiceItem {
   paymentMethod: PaymentMethod;
   value: number;
   proofImage?: string; // Base64 string da foto do valor/comprovante
+  createdAt?: string; // Quando o serviço entrou no sistema (envio em que foi registrado)
 }
 
 export interface ExpenseItem {

@@ -382,8 +382,12 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
 
       // Sobe as fotos dos serviços pro Storage e guarda só a URL no documento
       // (mantém o log leve e evita estouro de memória ao carregar a lista).
+      // Hora em que cada serviço foi registrado: serviços já enviados mantêm a
+      // original; os novos ganham a hora deste envio.
+      const registeredAt = new Date().toISOString();
       log.services = await Promise.all(
-        services.map(async (s) => {
+        services.map(async (svc) => {
+          const s = svc.createdAt ? svc : { ...svc, createdAt: registeredAt };
           if (s.proofImage && s.proofImage.startsWith('data:image')) {
             try {
               const url = await uploadImageDataUrl(`comprovantes/logs/${log.id}/${s.id}.jpg`, s.proofImage);
