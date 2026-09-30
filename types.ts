@@ -68,6 +68,11 @@ export interface DailyLog {
   checkedHudson?: boolean; // Added for Hudson's verification
   checkedAndre?: boolean; // Added for André's verification
   checked?: boolean; // Keep for backward compatibility if needed, but we'll use the specific ones
+  // Auditoria da conferência: quem fez a última marcação/desmarcação e quando.
+  checkedHudsonBy?: string;
+  checkedHudsonAt?: string;
+  checkedAndreBy?: string;
+  checkedAndreAt?: string;
   editHistory?: EditHistoryEntry[]; // Audit Trail
 }
 

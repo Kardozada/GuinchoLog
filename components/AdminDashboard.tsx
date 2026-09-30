@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getAllLogs, updateLog, getCurrentUser, deleteLog, fetchDrivers } from '../services/storage';
+import { getAllLogs, updateLog, getCurrentUser, deleteLog, fetchDrivers, setLogCheck, getLogById, copyConference } from '../services/storage';
 import { analyzeDailyLogs } from '../services/geminiService';
 import { DailyLog, ServiceItem, ExpenseItem, PaymentMethod, EditHistoryEntry, User } from '../types';
 import { MOCK_DRIVERS, VEHICLES, getLocalDate, getLocalDateFromDate } from '../constants';
@@ -380,6 +380,10 @@ const AdminDashboard: React.FC = () => {
     updatedLog.editHistory = [...(updatedLog.editHistory || []), historyEntry];
 
     try {
+      // A cópia da tela pode estar desatualizada: mantém a conferência que
+      // está no servidor para não desfazer a marcação feita por outra pessoa.
+      copyConference(await getLogById(updatedLog.id), updatedLog);
+
       // 4. Save
       await updateLog(updatedLog);
       
@@ -400,6 +404,21 @@ const AdminDashboard: React.FC = () => {
     setEditingLog({ ...editingLog, [field]: value });
   };
 
+  // Texto do "passar o mouse" no carimbo/check: quem fez a última marcação e quando.
+  const AUDIT_FIELDS = {
+    checkedHudson: ['checkedHudsonBy', 'checkedHudsonAt'],
+    checkedAndre: ['checkedAndreBy', 'checkedAndreAt'],
+  } as const;
+  const auditTitle = (list: DailyLog[], field: 'checkedHudson' | 'checkedAndre', label: string) => {
+    const [byKey, atKey] = AUDIT_FIELDS[field];
+    const last = list
+      .filter(l => l[atKey])
+      .sort((a, b) => String(b[atKey]).localeCompare(String(a[atKey])))[0];
+    if (!last) return label;
+    const quando = new Date(String(last[atKey])).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return `${label} — ${last[field] ? 'marcado' : 'desmarcado'} por ${last[byKey] || '?'} em ${quando}`;
+  };
+
   const toggleLogChecked = (logIds: string[], field: 'checkedHudson' | 'checkedAndre') => {
     // Determinar o estado alvo baseado no primeiro log da lista que coincida com os IDs
     const firstMatch = logs.find(l => logIds.includes(l.id));
@@ -408,10 +427,13 @@ const AdminDashboard: React.FC = () => {
     // Se o primeiro está desmarcado, vamos marcar todos. Se está marcado, vamos desmarcar todos.
     const targetValue = !firstMatch[field];
 
+    const by = currentUser?.name || 'Admin';
+    const at = new Date().toISOString();
+
     // 1. Atualização Otimista
     const updatedLogs = logs.map(log => {
       if (logIds.includes(log.id)) {
-        const updatedLog = { ...log, [field]: targetValue };
+        const updatedLog = { ...log, [field]: targetValue, [`${field}By`]: by, [`${field}At`]: at };
         if (field === 'checkedAndre') {
           updatedLog.checked = targetValue;
         }
@@ -421,10 +443,10 @@ const AdminDashboard: React.FC = () => {
     });
     setLogs(updatedLogs);
 
-    // 2. Persistência em segundo plano
-    const logsToUpdate = updatedLogs.filter(l => logIds.includes(l.id));
-    
-    Promise.all(logsToUpdate.map(log => updateLog(log)))
+    // 2. Persistência em segundo plano — grava SÓ o campo desta conferência.
+    // (Regravar o registro inteiro a partir da cópia da tela apagava a marcação
+    // feita pela outra pessoa quando a tela estava desatualizada.)
+    Promise.all(logIds.map(id => setLogCheck(id, field, targetValue, by)))
       .catch(err => {
         console.error(`Erro ao sincronizar estado de check (${field}):`, err);
       });
@@ -776,7 +798,7 @@ const AdminDashboard: React.FC = () => {
                                               e.stopPropagation();
                                               if (isHudson || isSuperAdmin) toggleLogChecked(driverLogs.map(l => l.id), 'checkedHudson');
                                             }}
-                                            title="Conferência Hudson (Serviços)"
+                                            title={auditTitle(driverLogs, 'checkedHudson', 'Conferência Hudson (Serviços)')}
                                             className={`p-1 rounded transition-colors ${isCheckedHudson ? 'text-blue-600' : 'text-gray-300'} ${isHudson || isSuperAdmin ? 'hover:text-gray-400' : 'cursor-not-allowed opacity-50'}`}
                                             disabled={!isHudson && !isSuperAdmin}
                                           >
@@ -787,7 +809,7 @@ const AdminDashboard: React.FC = () => {
                                               e.stopPropagation();
                                               if (isAndre || isSuperAdmin) toggleLogChecked(driverLogs.map(l => l.id), 'checkedAndre');
                                             }}
-                                            title="Conferência André (Pagamento)"
+                                            title={auditTitle(driverLogs, 'checkedAndre', 'Conferência André (Pagamento)')}
                                             className={`p-1 rounded transition-colors ${isCheckedAndre ? 'text-green-600' : 'text-gray-300'} ${isAndre || isSuperAdmin ? 'hover:text-gray-400' : 'cursor-not-allowed opacity-50'}`}
                                             disabled={!isAndre && !isSuperAdmin}
                                           >
@@ -1002,7 +1024,7 @@ const AdminDashboard: React.FC = () => {
                                         e.stopPropagation();
                                         if (isHudson || isSuperAdmin) toggleLogChecked(dayLogs.map(l => l.id), 'checkedHudson');
                                       }}
-                                      title="Conferência Hudson (Serviços)"
+                                      title={auditTitle(dayLogs, 'checkedHudson', 'Conferência Hudson (Serviços)')}
                                       className={`p-1 rounded transition-colors ${isCheckedHudson ? 'text-blue-600' : 'text-gray-300'} ${isHudson || isSuperAdmin ? 'hover:text-gray-400' : 'cursor-not-allowed opacity-50'}`}
                                       disabled={!isHudson && !isSuperAdmin}
                                     >
@@ -1013,7 +1035,7 @@ const AdminDashboard: React.FC = () => {
                                         e.stopPropagation();
                                         if (isAndre || isSuperAdmin) toggleLogChecked(dayLogs.map(l => l.id), 'checkedAndre');
                                       }}
-                                      title="Conferência André (Pagamento)"
+                                      title={auditTitle(dayLogs, 'checkedAndre', 'Conferência André (Pagamento)')}
                                       className={`p-1 rounded transition-colors ${isCheckedAndre ? 'text-green-600' : 'text-gray-300'} ${isAndre || isSuperAdmin ? 'hover:text-gray-400' : 'cursor-not-allowed opacity-50'}`}
                                       disabled={!isAndre && !isSuperAdmin}
                                     >

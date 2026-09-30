@@ -152,6 +152,47 @@ export const isLogConferred = (log: Partial<DailyLog> | null | undefined): boole
   return t(log.checkedHudson) || t(log.checkedAndre) || t((log as any).checked);
 };
 
+// Campos que pertencem ao administrativo (conferência + auditoria). Nenhuma
+// gravação feita a partir de uma cópia da tela pode sobrescrevê-los.
+export const CONFERENCE_KEYS = [
+  'checkedHudson', 'checkedAndre', 'checked',
+  'checkedHudsonBy', 'checkedHudsonAt', 'checkedAndreBy', 'checkedAndreAt',
+] as const;
+
+// Copia para `log` o estado de conferência atual do servidor.
+export const copyConference = (from: Partial<DailyLog> | null, to: DailyLog): DailyLog => {
+  if (!from) return to;
+  for (const k of CONFERENCE_KEYS) {
+    if ((from as any)[k] !== undefined) (to as any)[k] = (from as any)[k];
+  }
+  return to;
+};
+
+// Marca/desmarca a conferência gravando SÓ o campo daquela pessoa (merge), e
+// registra quem fez e quando. Antes o painel regravava o registro inteiro a
+// partir da cópia da tela — se estivesse desatualizada, o check do André
+// apagava o carimbo do Hudson (e vice-versa).
+export const setLogCheck = async (
+  logId: string,
+  field: 'checkedHudson' | 'checkedAndre',
+  value: boolean,
+  by: string
+): Promise<void> => {
+  const path = `${LOGS_COLLECTION}/${logId}`;
+  try {
+    await authReady;
+    const patch: Record<string, unknown> = {
+      [field]: value,
+      [`${field}By`]: by,
+      [`${field}At`]: new Date().toISOString(),
+    };
+    if (field === 'checkedAndre') patch.checked = value; // campo legado
+    await setDoc(doc(db, LOGS_COLLECTION, logId), patch, { merge: true });
+  } catch (e) {
+    handleFirestoreError(e, OperationType.WRITE, path);
+  }
+};
+
 export const updateLog = async (log: DailyLog): Promise<void> => {
   await saveLog(log);
 };
