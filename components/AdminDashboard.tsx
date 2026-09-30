@@ -917,9 +917,9 @@ const AdminDashboard: React.FC = () => {
     }
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 animate-fade-in h-[calc(100vh-200px)]">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 animate-fade-in h-[calc(100vh-170px)]">
         {/* Driver List Sidebar */}
-        <div className="md:col-span-4 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+        <div className="md:col-span-4 lg:col-span-3 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
            <div className="p-4 border-b border-gray-100">
               <div className="relative mb-3">
                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -999,7 +999,7 @@ const AdminDashboard: React.FC = () => {
         </div>
 
         {/* Driver Details Area */}
-        <div className="md:col-span-8 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+        <div className="md:col-span-8 lg:col-span-9 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
            {selectedDriverId ? (
              <div className="flex flex-col h-full">
                 <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
@@ -1268,7 +1268,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-[1800px] mx-auto space-y-6">
        {/* Header */}
        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
