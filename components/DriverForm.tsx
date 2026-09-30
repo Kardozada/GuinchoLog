@@ -385,6 +385,11 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
       // Hora em que cada serviço foi registrado: serviços já enviados mantêm a
       // original; os novos ganham a hora deste envio.
       const registeredAt = new Date().toISOString();
+      // Despesas: descarta linhas vazias (sem descrição e sem valor) e marca a
+      // hora de registro das novas; as já enviadas mantêm a original.
+      log.expenses = expenses
+        .filter(e => (e.description || '').trim() !== '' || (Number(e.value) || 0) !== 0)
+        .map(e => (e.createdAt ? e : { ...e, createdAt: registeredAt }));
       log.services = await Promise.all(
         services.map(async (svc) => {
           const s = svc.createdAt ? svc : { ...svc, createdAt: registeredAt };
