@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { User, DailyLog, ServiceItem, ExpenseItem, PaymentMethod } from '../types';
 import { VEHICLES, getLocalDate } from '../constants';
-import { saveLog, getLogsByUser, uploadImageDataUrl } from '../services/storage';
-import { Plus, Trash2, Save, Truck, DollarSign, Clock, MapPin, Loader2, CheckCircle, Camera, Image as ImageIcon, X, FileText } from 'lucide-react';
+import { saveLog, getLogsByUser, getLogById, isLogConferred, uploadImageDataUrl } from '../services/storage';
+import { Plus, Trash2, Save, Truck, DollarSign, Clock, MapPin, Loader2, CheckCircle, Camera, Image as ImageIcon, X, FileText, Lock } from 'lucide-react';
 import Calendar from './Calendar';
 
 import { v4 as uuidv4 } from 'uuid';
@@ -150,6 +150,13 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
         }
       }
   }, [date, selectedVehicle, userLogs, existingLogId]);
+
+  // Dia já conferido (carimbo do Hudson ou check do André) fica somente leitura
+  // para o motorista. Só o administrativo (Hudson, André, admin) pode alterar.
+  const currentLog = existingLogId ? userLogs.find(l => l.id === existingLogId) : undefined;
+  const isLocked = isLogConferred(currentLog);
+  const lockedByHudson = !!currentLog?.checkedHudson;
+  const lockedByAndre = !!currentLog?.checkedAndre;
 
   // Calculations
   const totalInvoiced = services.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
@@ -302,7 +309,12 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    if (isLocked) {
+      alert("Este dia já foi conferido e não pode mais ser alterado. Se precisar corrigir algo, fale com o administrativo.");
+      return;
+    }
+
     if (!selectedVehicle) {
       alert("Por favor, selecione um veículo.");
       return;
@@ -351,6 +363,25 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
     };
 
     try {
+      // Revalida no servidor antes de gravar: o Hudson/André pode ter conferido
+      // o dia enquanto o motorista estava com a tela aberta. Se já foi conferido,
+      // bloqueia. Senão, preserva os campos do administrativo — o setDoc substitui
+      // o documento inteiro e, antes, apagava o carimbo e o histórico de edição.
+      if (existingLogId) {
+        const fresh = await getLogById(existingLogId);
+        if (isLogConferred(fresh)) {
+          alert("Este dia acabou de ser conferido pelo administrativo e não pode mais ser alterado. Se precisar corrigir algo, fale com eles.");
+          setIsSubmitting(false);
+          return;
+        }
+        if (fresh) {
+          if (fresh.checkedHudson !== undefined) log.checkedHudson = fresh.checkedHudson;
+          if (fresh.checkedAndre !== undefined) log.checkedAndre = fresh.checkedAndre;
+          if (fresh.checked !== undefined) log.checked = fresh.checked;
+          if (fresh.editHistory) log.editHistory = fresh.editHistory;
+        }
+      }
+
       // Sobe as fotos dos serviços pro Storage e guarda só a URL no documento
       // (mantém o log leve e evita estouro de memória ao carregar a lista).
       log.services = await Promise.all(
@@ -444,6 +475,25 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
           </div>
         </div>
 
+        {isLocked && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900">
+            <Lock className="w-5 h-5 mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <p className="font-bold">Dia conferido — somente leitura</p>
+              <p className="mt-0.5">
+                {lockedByHudson && lockedByAndre
+                  ? 'Este dia já foi conferido pelo Hudson e pelo André.'
+                  : lockedByHudson
+                    ? 'Este dia já foi carimbado pelo Hudson.'
+                    : 'Este dia já foi conferido pelo André.'}
+                {' '}Não é mais possível adicionar ou alterar serviços e despesas. Se algo precisar ser corrigido, fale com o administrativo.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Tudo abaixo fica desabilitado quando o dia já foi conferido. */}
+        <fieldset disabled={isLocked} className={`m-0 p-0 border-0 min-w-0 ${isLocked ? 'opacity-70' : ''}`}>
         {/* Services Grid - Responsive */}
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4">
@@ -711,6 +761,7 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
               </div>
            </div>
         </div>
+        </fieldset>
 
       </div>
 

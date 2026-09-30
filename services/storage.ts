@@ -1,6 +1,6 @@
 import { DailyLog, User, FuelRecord, MaintenanceRecord } from '../types';
 import { db, authReady, storage } from './firebase';
-import { collection, doc, setDoc, getDocs, getDocsFromCache, deleteDoc, query, where } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocFromServer, getDocs, getDocsFromCache, deleteDoc, query, where } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 
 // Envia uma imagem (data URL base64) para o Storage e devolve a URL de download.
@@ -123,6 +123,33 @@ export const saveLog = async (log: DailyLog): Promise<void> => {
   } catch (e) {
     handleFirestoreError(e, OperationType.WRITE, path);
   }
+};
+
+// Lê um registro direto do servidor (não do cache), para decidir com o estado
+// mais recente — ex.: saber se o dia foi conferido enquanto o motorista editava.
+export const getLogById = async (logId: string): Promise<DailyLog | null> => {
+  try {
+    await authReady;
+    const ref = doc(db, LOGS_COLLECTION, logId);
+    let snap;
+    try {
+      snap = await getDocFromServer(ref);
+    } catch {
+      snap = await getDoc(ref); // sem rede: cai no cache local
+    }
+    return snap.exists() ? (snap.data() as DailyLog) : null;
+  } catch (e) {
+    handleFirestoreError(e, OperationType.GET, `${LOGS_COLLECTION}/${logId}`);
+    return null;
+  }
+};
+
+// Dia conferido = carimbado pelo Hudson ou marcado pelo André. Aceita os
+// formatos antigos em texto ("true"/"TRUE") vindos da planilha.
+export const isLogConferred = (log: Partial<DailyLog> | null | undefined): boolean => {
+  if (!log) return false;
+  const t = (v: any) => v === true || v === 'true' || v === 'TRUE';
+  return t(log.checkedHudson) || t(log.checkedAndre) || t((log as any).checked);
 };
 
 export const updateLog = async (log: DailyLog): Promise<void> => {
