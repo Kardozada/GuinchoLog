@@ -488,7 +488,8 @@ const AdminDashboard: React.FC = () => {
       id: Math.random().toString(36).substr(2, 9),
       startTime: '', endTime: '', departure: '', destination: '',
       towedVehicle: '', towedPlate: '', clientName: '', clientPhone: '',
-      paymentMethod: PaymentMethod.CASH, value: 0
+      paymentMethod: PaymentMethod.CASH, value: 0,
+      createdAt: new Date().toISOString()
     };
     setEditingLog({ ...editingLog, services: [...editingLog.services, newService] });
   };
@@ -525,6 +526,7 @@ const AdminDashboard: React.FC = () => {
             <th className="px-3 py-2 text-left font-medium text-gray-500">Pagamento</th>
             <th className="px-3 py-2 text-right font-medium text-gray-500">Valor</th>
             <th className="px-3 py-2 text-center font-medium text-gray-500">Comp.</th>
+            <th className="px-3 py-2 text-left font-medium text-gray-500 whitespace-nowrap">Registrado</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
@@ -565,10 +567,20 @@ const AdminDashboard: React.FC = () => {
                   <span className="text-gray-300">-</span>
                 )}
               </td>
+              <td className="px-3 py-2 text-gray-600 whitespace-nowrap">
+                {s.createdAt ? (
+                  <span className="flex flex-col leading-tight">
+                    <span className="font-medium text-gray-800">{new Date(s.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+                    <span className="text-xs text-gray-500">{new Date(s.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                  </span>
+                ) : (
+                  <span className="text-gray-300" title="Serviço registrado antes deste recurso existir">-</span>
+                )}
+              </td>
             </tr>
           ))}
           {(!services || services.length === 0) && (
-            <tr><td colSpan={7} className="text-center py-4 text-gray-400">Nenhum serviço neste relatório.</td></tr>
+            <tr><td colSpan={8} className="text-center py-4 text-gray-400">Nenhum serviço neste relatório.</td></tr>
           )}
         </tbody>
       </table>
