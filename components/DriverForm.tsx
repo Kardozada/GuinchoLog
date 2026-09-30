@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, DailyLog, ServiceItem, ExpenseItem, PaymentMethod } from '../types';
 import { VEHICLES, getLocalDate } from '../constants';
-import { saveLog, getLogsByUser, getLogById, isLogConferred, uploadImageDataUrl } from '../services/storage';
+import { saveLog, getLogsByUser, getLogById, isLogConferred, copyConference, uploadImageDataUrl } from '../services/storage';
 import { Plus, Trash2, Save, Truck, DollarSign, Clock, MapPin, Loader2, CheckCircle, Camera, Image as ImageIcon, X, FileText, Lock } from 'lucide-react';
 import Calendar from './Calendar';
 
@@ -375,9 +375,7 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
           return;
         }
         if (fresh) {
-          if (fresh.checkedHudson !== undefined) log.checkedHudson = fresh.checkedHudson;
-          if (fresh.checkedAndre !== undefined) log.checkedAndre = fresh.checkedAndre;
-          if (fresh.checked !== undefined) log.checked = fresh.checked;
+          copyConference(fresh, log);
           if (fresh.editHistory) log.editHistory = fresh.editHistory;
         }
       }
