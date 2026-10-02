@@ -205,7 +205,7 @@ const Calendar: React.FC<CalendarProps> = ({ logs }) => {
                   <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                     <CheckCircle2 className="w-6 h-6 text-green-600"/> Detalhes do Dia
                   </h3>
-                  <p className="text-sm text-gray-500">Data: {new Date(selectedDate).toLocaleDateString('pt-BR')}</p>
+                  <p className="text-sm text-gray-500">Data: {new Date(selectedDate + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
                </div>
                <button onClick={() => setShowDetails(false)} className="text-gray-400 hover:text-gray-600 p-2">
                  <X className="w-6 h-6" />
