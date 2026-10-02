@@ -1432,7 +1432,7 @@ const AdminDashboard: React.FC = () => {
                   <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                     <Pencil className="w-6 h-6 text-indigo-600"/> Editando Relatório
                   </h3>
-                  <p className="text-xs text-gray-500">Motorista: {editingLog.driverName} | Data: {new Date(editingLog.date).toLocaleDateString('pt-BR')}</p>
+                  <p className="text-xs text-gray-500">Motorista: {editingLog.driverName} | Data: {new Date(String(editingLog.date).slice(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
                </div>
                <button onClick={handleCloseEdit} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
             </div>
