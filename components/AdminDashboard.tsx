@@ -1498,6 +1498,22 @@ const AdminDashboard: React.FC = () => {
                                 {Object.values(PaymentMethod).map(m => <option key={m} value={m}>{m}</option>)}
                               </select>
                            </div>
+                           <div>
+                              <label className="text-xs text-gray-500">Origem</label>
+                              <input type="text" placeholder="De onde saiu" value={service.departure || ''} onChange={(e) => updateServiceInEdit(index, 'departure', e.target.value)} className="w-full p-2 border border-gray-300 rounded text-sm bg-white text-gray-900"/>
+                           </div>
+                           <div>
+                              <label className="text-xs text-gray-500">Destino</label>
+                              <input type="text" placeholder="Para onde levou" value={service.destination || ''} onChange={(e) => updateServiceInEdit(index, 'destination', e.target.value)} className="w-full p-2 border border-gray-300 rounded text-sm bg-white text-gray-900"/>
+                           </div>
+                           <div>
+                              <label className="text-xs text-gray-500">Veículo rebocado</label>
+                              <input type="text" placeholder="Modelo" value={service.towedVehicle || ''} onChange={(e) => updateServiceInEdit(index, 'towedVehicle', e.target.value.toUpperCase())} className="w-full p-2 border border-gray-300 rounded text-sm bg-white text-gray-900"/>
+                           </div>
+                           <div>
+                              <label className="text-xs text-gray-500">Placa</label>
+                              <input type="text" placeholder="ABC1D23" value={service.towedPlate || ''} onChange={(e) => updateServiceInEdit(index, 'towedPlate', e.target.value.toUpperCase())} className="w-full p-2 border border-gray-300 rounded text-sm bg-white text-gray-900"/>
+                           </div>
                         </div>
                       </div>
                     ))}
