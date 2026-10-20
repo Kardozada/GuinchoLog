@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getAllLogs, fetchFuelRecords, deleteLog, saveFuelRecord } from '../services/storage';
+import { getAllLogs, fetchFuelRecords, deleteLog, saveFuelRecord, getCurrentUser } from '../services/storage';
 import { VEHICLES } from '../constants';
 import { DailyLog, FuelRecord } from '../types';
 import { AlertTriangle, Loader2, ArrowRight, ShieldCheck, Wand2 } from 'lucide-react';
@@ -199,9 +199,9 @@ const ReviewPanel: React.FC<{ onGoTo: (area: 'refuel' | 'log', recordId?: string
     setFixingIdx(idx);
     try {
       if (fx.kind === 'dupe') {
-        for (const id of fx.removeIds) await deleteLog(id);
+        for (const id of fx.removeIds) await deleteLog(id, `${getCurrentUser()?.name || 'Admin'} (Revisão)`);
       } else if (fx.kind === 'blank') {
-        await deleteLog(fx.logId);
+        await deleteLog(fx.logId, `${getCurrentUser()?.name || 'Admin'} (Revisão)`);
       } else if (fx.kind === 'total') {
         const rec = fuels.find(r => r.id === fx.recordId);
         if (rec) await saveFuelRecord({ ...rec, total: fx.newTotal });
@@ -232,9 +232,9 @@ const ReviewPanel: React.FC<{ onGoTo: (area: 'refuel' | 'log', recordId?: string
       for (const f of list) {
         const fx = f.autofix!;
         if (fx.kind === 'dupe') {
-          for (const id of fx.removeIds) await deleteLog(id);
+          for (const id of fx.removeIds) await deleteLog(id, `${getCurrentUser()?.name || 'Admin'} (Revisão)`);
         } else if (fx.kind === 'blank') {
-          await deleteLog(fx.logId);
+          await deleteLog(fx.logId, `${getCurrentUser()?.name || 'Admin'} (Revisão)`);
         } else if (fx.kind === 'total') {
           const rec = fuels.find(r => r.id === fx.recordId);
           if (rec) await saveFuelRecord({ ...rec, total: fx.newTotal });
