@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { User, DailyLog, ServiceItem, ExpenseItem, PaymentMethod } from '../types';
 import { VEHICLES, getLocalDate } from '../constants';
 import { saveLog, getLogsByUser, getLogById, isLogConferred, copyConference, uploadImageDataUrl } from '../services/storage';
@@ -31,6 +31,14 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
   // número para permitir vírgula decimal no celular sem o navegador zerar o
   // valor (o antigo type="number" descartava "150,00" e travava o envio).
   const [valueInputs, setValueInputs] = useState<Record<string, string>>({});
+  // Id do relatório NOVO (ainda não salvo), fixo por dia+veículo. Se o envio der
+  // erro (sinal fraco) e o motorista tentar de novo, a nova tentativa substitui a
+  // anterior em vez de criar uma cópia — antes cada tentativa gerava um registro.
+  const draftRef = useRef<{ key: string; id: string }>({ key: '', id: generateId() });
+  const draftIdFor = (key: string) => {
+    if (draftRef.current.key !== key) draftRef.current = { key, id: generateId() };
+    return draftRef.current.id;
+  };
   const [expenseValueInputs, setExpenseValueInputs] = useState<Record<string, string>>({});
   const [existingLogId, setExistingLogId] = useState<string | null>(null);
 
@@ -346,7 +354,7 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
     setIsSubmitting(true);
 
     const log: DailyLog = {
-      id: existingLogId || generateId(),
+      id: existingLogId || draftIdFor(`${date}|${selectedVehicle}`),
       userId: user.id,
       driverName: user.name,
       date,
@@ -409,6 +417,7 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
       // 1. Save to Firestore
       await saveLog(log);
 
+      draftRef.current = { key: '', id: generateId() }; // próximo relatório novo usa outro id
       setIsSubmitting(false);
       setShowSuccessModal(true);
     } catch (error) {

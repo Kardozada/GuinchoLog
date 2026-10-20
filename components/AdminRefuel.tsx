@@ -53,9 +53,9 @@ const AdminRefuel: React.FC<{ focusRecordId?: string; onFocusConsumed?: () => vo
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Tem certeza que deseja excluir este abastecimento?')) return;
+    if (!window.confirm('Excluir este abastecimento? Ele vai para a Lixeira e pode ser restaurado por 30 dias.')) return;
     try {
-      await deleteFuelRecord(id);
+      await deleteFuelRecord(id, getCurrentUser()?.name);
       await loadRecords();
     } catch (error) {
       console.error('Erro ao deletar:', error);

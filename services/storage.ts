@@ -1,6 +1,6 @@
 import { DailyLog, User, FuelRecord, MaintenanceRecord } from '../types';
 import { db, authReady, storage } from './firebase';
-import { collection, doc, setDoc, getDoc, getDocFromServer, getDocs, getDocsFromCache, deleteDoc, query, where } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocFromServer, getDocs, getDocsFromCache, getDocsFromServer, deleteDoc, query, where, writeBatch } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 
 // Envia uma imagem (data URL base64) para o Storage e devolve a URL de download.
@@ -197,10 +197,70 @@ export const updateLog = async (log: DailyLog): Promise<void> => {
   await saveLog(log);
 };
 
-export const deleteLog = async (logId: string): Promise<void> => {
+// --- Lixeira ---------------------------------------------------------------
+// Excluir não apaga de vez: o documento vai para a coleção 'lixeira' (com quem
+// excluiu e quando) e pode ser restaurado por 30 dias.
+const TRASH_COLLECTION = 'lixeira';
+export const TRASH_DAYS = 30;
+export type TrashableCollection = 'logs' | 'abastecimentos';
+export interface TrashItem {
+  id: string;                    // id na lixeira: `${collection}__${originalId}`
+  collection: TrashableCollection;
+  originalId: string;
+  data: any;                     // documento original, intacto
+  deletedAt: string;
+  deletedBy: string;
+}
+export const trashIdFor = (col: TrashableCollection, id: string) => `${col}__${id}`;
+
+const moveToTrash = async (col: TrashableCollection, id: string, by?: string): Promise<void> => {
+  await authReady;
+  const ref = doc(db, col, id);
+  let snap;
+  try { snap = await getDocFromServer(ref); } catch { snap = await getDoc(ref); }
+  if (!snap.exists()) return;
+  const batch = writeBatch(db); // copia e apaga juntos: ou acontecem as duas coisas, ou nenhuma
+  batch.set(doc(db, TRASH_COLLECTION, trashIdFor(col, id)), {
+    collection: col, originalId: id, data: snap.data(),
+    deletedAt: new Date().toISOString(), deletedBy: by || 'Desconhecido',
+  });
+  batch.delete(ref);
+  await batch.commit();
+};
+
+export const restoreFromTrash = async (trashId: string): Promise<void> => {
+  await authReady;
+  const tRef = doc(db, TRASH_COLLECTION, trashId);
+  let snap;
+  try { snap = await getDocFromServer(tRef); } catch { snap = await getDoc(tRef); }
+  if (!snap.exists()) throw new Error('Item não está mais na lixeira.');
+  const item = snap.data() as TrashItem;
+  const batch = writeBatch(db);
+  batch.set(doc(db, item.collection, item.originalId), item.data);
+  batch.delete(tRef);
+  await batch.commit();
+  localStorage.removeItem(item.collection === 'logs' ? 'sync_time_logs_all' : 'sync_time_fuels_all');
+};
+
+// Lista a lixeira (sempre do servidor) e descarta o que passou de 30 dias.
+export const fetchTrash = async (): Promise<TrashItem[]> => {
+  await authReady;
+  const snap = await getDocsFromServer(query(collection(db, TRASH_COLLECTION)));
+  const limit = Date.now() - TRASH_DAYS * 86400000;
+  const items: TrashItem[] = [];
+  const expired: string[] = [];
+  snap.forEach((d) => {
+    const it = { id: d.id, ...(d.data() as Omit<TrashItem, 'id'>) };
+    if (new Date(it.deletedAt).getTime() < limit) expired.push(d.id); else items.push(it);
+  });
+  await Promise.all(expired.map(id => deleteDoc(doc(db, TRASH_COLLECTION, id)).catch(() => {})));
+  return items.sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
+};
+
+export const deleteLog = async (logId: string, by?: string): Promise<void> => {
   const path = `${LOGS_COLLECTION}/${logId}`;
   try {
-    await deleteDoc(doc(db, LOGS_COLLECTION, logId));
+    await moveToTrash(LOGS_COLLECTION as TrashableCollection, logId, by);
   } catch (e) {
     handleFirestoreError(e, OperationType.DELETE, path);
   }
@@ -352,10 +412,10 @@ export const getFuelRecordsByVehicle = async (vehicleId: string): Promise<FuelRe
   }
 };
 
-export const deleteFuelRecord = async (recordId: string): Promise<void> => {
+export const deleteFuelRecord = async (recordId: string, by?: string): Promise<void> => {
   const path = `${FUELS_COLLECTION}/${recordId}`;
   try {
-    await deleteDoc(doc(db, FUELS_COLLECTION, recordId));
+    await moveToTrash(FUELS_COLLECTION as TrashableCollection, recordId, by);
   } catch (e) {
     handleFirestoreError(e, OperationType.DELETE, path);
   }

@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { getAllLogs, updateLog, getCurrentUser, deleteLog, fetchDrivers, setLogCheck, getLogById, copyConference } from '../services/storage';
+import { getAllLogs, updateLog, getCurrentUser, deleteLog, fetchDrivers, setLogCheck, getLogById, copyConference, restoreFromTrash, trashIdFor } from '../services/storage';
 import { analyzeDailyLogs } from '../services/geminiService';
 import { DailyLog, ServiceItem, ExpenseItem, PaymentMethod, EditHistoryEntry, User } from '../types';
 import { MOCK_DRIVERS, VEHICLES, getLocalDate, getLocalDateFromDate } from '../constants';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Bot, FileText, Search, TrendingUp, RefreshCw, AlertTriangle, X, Copy, Check, Settings, Calendar, Users, ChevronDown, ChevronRight, MapPin, Clock, Truck, DollarSign, Image as ImageIcon, LayoutDashboard, Pencil, History, Save, Trash2, Plus, Square, CheckSquare, Stamp, Droplet, Wrench, User as UserIcon, Minus } from 'lucide-react';
+import { Bot, FileText, Search, TrendingUp, RefreshCw, AlertTriangle, X, Copy, Check, Settings, Calendar, Users, ChevronDown, ChevronRight, MapPin, Clock, Truck, DollarSign, Image as ImageIcon, LayoutDashboard, Pencil, History, Save, Trash2, Plus, Square, CheckSquare, Stamp, Droplet, Wrench, User as UserIcon, Minus, RotateCcw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import AdminRefuel from './AdminRefuel';
 import DriverManagement from './DriverManagement';
 import ReviewPanel from './ReviewPanel';
+import TrashPanel from './TrashPanel';
 import AdminMaintenance from './AdminMaintenance';
 
 // --- GAS SCRIPT ATUALIZADO (Suporte a Update/Upsert) ---
@@ -104,7 +105,7 @@ function setup() {
   }
 }`;
 
-type TabView = 'overview' | 'dates' | 'drivers' | 'cash' | 'refuel' | 'maintenance' | 'register' | 'review';
+type TabView = 'overview' | 'dates' | 'drivers' | 'cash' | 'refuel' | 'maintenance' | 'register' | 'review' | 'trash';
 
 const AdminDashboard: React.FC = () => {
   const [logs, setLogs] = useState<DailyLog[]>([]);
@@ -136,6 +137,10 @@ const AdminDashboard: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   
+  // Aviso "Registro excluído — Desfazer" (some sozinho depois de alguns segundos)
+  const [undoToast, setUndoToast] = useState<{ log: DailyLog; label: string } | null>(null);
+  const undoTimer = React.useRef<number | undefined>(undefined);
+
   // Edit State
   const [editingLog, setEditingLog] = useState<DailyLog | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -453,19 +458,42 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleDeleteLog = async (id: string) => {
-    if (!confirm(`Tem certeza que deseja excluir este relatório? Esta ação não pode ser desfeita.`)) return;
+    if (!confirm(`Excluir este relatório? Ele vai para a Lixeira e pode ser restaurado por 30 dias.`)) return;
+    const removed = logs.find(l => l.id === id);
 
     // 1. Atualização Otimista
     setLogs(prev => prev.filter(l => l.id !== id));
 
-    // 2. Exclusão no background
+    // 2. Move para a lixeira e oferece "Desfazer"
     setLoadingData(true);
     try {
-      await deleteLog(id);
+      await deleteLog(id, currentUser?.name);
+      if (removed) {
+        window.clearTimeout(undoTimer.current);
+        setUndoToast({ log: removed, label: `${removed.driverName} · ${formatDateHeader(removed.date).short}` });
+        undoTimer.current = window.setTimeout(() => setUndoToast(null), 10000);
+      }
     } catch (err) {
       console.error("Erro ao excluir log:", err);
+      if (removed) setLogs(prev => [...prev, removed].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      alert("Não foi possível excluir. Verifique a conexão e tente de novo.");
     } finally {
       setLoadingData(false);
+    }
+  };
+
+  const handleUndoDelete = async () => {
+    if (!undoToast) return;
+    const { log } = undoToast;
+    window.clearTimeout(undoTimer.current);
+    setUndoToast(null);
+    try {
+      await restoreFromTrash(trashIdFor('logs', log.id));
+      setLogs(prev => (prev.some(l => l.id === log.id) ? prev : [...prev, log])
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+    } catch (err) {
+      console.error("Erro ao desfazer exclusão:", err);
+      alert("Não foi possível desfazer aqui. O registro continua na aba Lixeira para restaurar.");
     }
   };
 
@@ -1319,7 +1347,7 @@ const AdminDashboard: React.FC = () => {
        </div>
 
        {/* Tabs */}
-       <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl w-fit">
+       <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-xl w-fit max-w-full">
           <button 
             onClick={() => setActiveTab('overview')}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'overview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
@@ -1373,6 +1401,13 @@ const AdminDashboard: React.FC = () => {
             <AlertTriangle className="w-4 h-4" />
             Revisão
           </button>
+          <button
+            onClick={() => setActiveTab('trash')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'trash' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            <Trash2 className="w-4 h-4" />
+            Lixeira
+          </button>
        </div>
 
        {/* Content */}
@@ -1385,6 +1420,7 @@ const AdminDashboard: React.FC = () => {
           {activeTab === 'maintenance' && <AdminMaintenance />}
           {activeTab === 'register' && <DriverManagement />}
           {activeTab === 'review' && <ReviewPanel onGoTo={handleReviewGoTo} />}
+          {activeTab === 'trash' && <TrashPanel onRestored={loadData} />}
        </div>
 
        {/* Modals */}
@@ -1573,6 +1609,15 @@ const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {undoToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-4 bg-gray-900 text-white rounded-xl shadow-2xl px-5 py-3">
+          <span className="text-sm">Registro excluído <span className="text-gray-400">({undoToast.label})</span></span>
+          <button onClick={handleUndoDelete} className="flex items-center gap-1.5 text-sm font-bold text-amber-300 hover:text-amber-200">
+            <RotateCcw className="w-4 h-4" /> Desfazer
+          </button>
+          <button onClick={() => setUndoToast(null)} className="text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+      )}
     </div>
   );
 };
