@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FuelRecord } from '../types';
 import { VEHICLES, POSTOS, TIPOS_COMBUSTIVEL } from '../constants';
-import { fetchFuelRecords, deleteFuelRecord, saveFuelRecord, getCurrentUser } from '../services/storage';
+import { fetchFuelRecords, subscribeFuelRecords, deleteFuelRecord, saveFuelRecord, getCurrentUser } from '../services/storage';
 import { Droplet, Calendar, Loader2, Edit2, Trash2, User as UserIcon, X, Search, BarChart3, Save, Image as ImageIcon, ChevronUp, ChevronDown, Plus } from 'lucide-react';
 import RefuelForm from './RefuelForm';
 
@@ -31,8 +31,10 @@ const AdminRefuel: React.FC<{ focusRecordId?: string; onFocusConsumed?: () => vo
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [showConsumption, setShowConsumption] = useState(true);
 
+  // Tempo real: abastecimentos novos ou corrigidos por outro admin aparecem na hora.
   useEffect(() => {
-    loadRecords();
+    setIsLoading(true);
+    return subscribeFuelRecords(data => { setRecords(data); setIsLoading(false); }, () => loadRecords());
   }, []);
 
   // Vindo do Painel de Revisão: abre direto o abastecimento apontado como erro.
