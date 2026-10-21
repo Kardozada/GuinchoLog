@@ -1,6 +1,6 @@
 import { DailyLog, User, FuelRecord, MaintenanceRecord } from '../types';
 import { db, authReady, storage } from './firebase';
-import { collection, doc, setDoc, getDoc, getDocFromServer, getDocs, getDocsFromCache, getDocsFromServer, deleteDoc, query, where, writeBatch } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, getDocFromServer, getDocs, getDocsFromCache, getDocsFromServer, deleteDoc, query, where, writeBatch, onSnapshot, QuerySnapshot } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 
 // Envia uma imagem (data URL base64) para o Storage e devolve a URL de download.
@@ -43,8 +43,10 @@ interface FirestoreErrorInfo {
   }
 }
 
-// Helper to handle offline/quota reads safely with smart caching
-async function getDocsSmart(q: any, cacheKey: string, cooldownMs = 5 * 60 * 1000) {
+// Lê sempre do servidor (para nunca mostrar dado antigo de outro admin); o cache
+// local só é usado como plano B quando não há conexão. Um cooldown > 0 volta a
+// permitir ler do cache por um tempo, para leituras onde atraso não importa.
+async function getDocsSmart(q: any, cacheKey: string, cooldownMs = 0) {
   const syncKey = `sync_time_${cacheKey}`;
   const lastSync = localStorage.getItem(syncKey);
   const now = Date.now();
@@ -404,31 +406,67 @@ export const fetchFuelRecords = async (): Promise<FuelRecord[]> => {
     const q = query(collection(db, FUELS_COLLECTION));
     
     const querySnapshot = await getDocsSmart(q, 'fuels_all');
-    const records: FuelRecord[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data() as FuelRecord;
-      
-      // Inference for historical data
-      if (data.tanqueCheio === undefined) {
-        const obs = (data.observations || '').toLowerCase();
-        const isFull = obs.includes('completo') || obs.includes('tanque cheio') || obs.includes('enchi');
-        data.tanqueCheio = isFull;
-        data.tanqueCheioInferido = true;
-      }
-      
-      records.push(data);
-    });
-    return records.sort((a, b) => {
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
-      if (dateB !== dateA) return dateB - dateA;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+    return fuelRecordsFrom(querySnapshot);
   } catch (e) {
     handleFirestoreError(e, OperationType.GET, FUELS_COLLECTION);
     return [];
   }
 };
+
+const fuelRecordsFrom = (snap: QuerySnapshot): FuelRecord[] => {
+  const records: FuelRecord[] = [];
+  snap.forEach((doc) => {
+    const data = doc.data() as FuelRecord;
+
+    // Inference for historical data
+    if (data.tanqueCheio === undefined) {
+      const obs = (data.observations || '').toLowerCase();
+      const isFull = obs.includes('completo') || obs.includes('tanque cheio') || obs.includes('enchi');
+      data.tanqueCheio = isFull;
+      data.tanqueCheioInferido = true;
+    }
+
+    records.push(data);
+  });
+  return records.sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    if (dateB !== dateA) return dateB - dateA;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+};
+
+// --- Sincronização em tempo real ---
+// Mantém a lista aberta ligada ao banco: qualquer alteração feita por outro
+// admin ou motorista chega em segundos, sem F5. Com o cache persistente, ao
+// reabrir o app só os documentos que mudaram são baixados de novo.
+const subscribe = <T>(
+  colName: string,
+  map: (snap: QuerySnapshot) => T[],
+  onData: (items: T[]) => void,
+  onError?: (e: unknown) => void,
+): (() => void) => {
+  let unsub: (() => void) | null = null;
+  let cancelled = false;
+  authReady.then(() => {
+    if (cancelled) return;
+    unsub = onSnapshot(query(collection(db, colName)), snap => onData(map(snap)), e => {
+      console.warn(`Listener ${colName} falhou`, e);
+      onError?.(e);
+    });
+  });
+  return () => { cancelled = true; unsub?.(); };
+};
+
+export const subscribeLogs = (onData: (logs: DailyLog[]) => void, onError?: (e: unknown) => void) =>
+  subscribe(LOGS_COLLECTION, snap => {
+    const logs: DailyLog[] = [];
+    snap.forEach(d => logs.push(d.data() as DailyLog));
+    return logs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, onData, onError);
+
+export const subscribeFuelRecords = (onData: (records: FuelRecord[]) => void, onError?: (e: unknown) => void) =>
+  subscribe(FUELS_COLLECTION, fuelRecordsFrom, onData, onError);
 
 export const getFuelRecordsByUser = async (userId: string): Promise<FuelRecord[]> => {
   try {

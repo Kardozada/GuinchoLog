@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { getAllLogs, updateLog, getCurrentUser, deleteLog, fetchDrivers, setLogCheck, getLogById, copyConference, restoreFromTrash, trashIdFor, trashLogItems } from '../services/storage';
+import React, { useEffect, useRef, useState } from 'react';
+import { getAllLogs, subscribeLogs, updateLog, getCurrentUser, deleteLog, fetchDrivers, setLogCheck, getLogById, copyConference, restoreFromTrash, trashIdFor, trashLogItems } from '../services/storage';
 import { analyzeDailyLogs } from '../services/geminiService';
 import { DailyLog, ServiceItem, ExpenseItem, PaymentMethod, EditHistoryEntry, User } from '../types';
 import { MOCK_DRIVERS, VEHICLES, getLocalDate, getLocalDateFromDate } from '../constants';
@@ -166,10 +166,11 @@ const AdminDashboard: React.FC = () => {
   };
 
   // --- Data Loading ---
-  const loadData = async () => {
-    setLoadingData(true);
-    let rawLogs: DailyLog[] = await getAllLogs();
-
+  // Normaliza os registros vindos do banco (datas, totais, checks, nome oficial).
+  const driversRef = useRef(registeredDrivers);
+  driversRef.current = registeredDrivers;
+  const normalizeLogs = (rawLogs: DailyLog[]): DailyLog[] => {
+    const registeredDrivers = driversRef.current;
     // Deduplicar por ID para evitar erros de chave no React e duplicidade visual
     const uniqueLogsMap = new Map<string, DailyLog>();
     rawLogs.forEach(log => {
@@ -267,14 +268,32 @@ const AdminDashboard: React.FC = () => {
     });
     
     // Sort before setting
-    const finalLogs = Array.from(uniqueLogsMap.values()).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    setLogs(finalLogs);
+    return Array.from(uniqueLogsMap.values()).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  };
+
+  // Botão "Atualizar": leitura direta do servidor.
+  const loadData = async () => {
+    setLoadingData(true);
+    setLogs(normalizeLogs(await getAllLogs()));
     setLoadingData(false);
   };
 
+  // Tempo real: alterações de Hudson, André, admin ou motoristas aparecem
+  // na hora para todos. Se o canal cair, faz uma leitura normal.
+  const lastRawRef = useRef<DailyLog[] | null>(null);
   useEffect(() => {
-    loadData();
+    setLoadingData(true);
+    return subscribeLogs(raw => {
+      lastRawRef.current = raw;
+      setLogs(normalizeLogs(raw));
+      setLoadingData(false);
+    }, () => loadData());
   }, []);
+
+  // Lista de motoristas chegou depois dos registros: renormaliza os nomes.
+  useEffect(() => {
+    if (lastRawRef.current) setLogs(normalizeLogs(lastRawRef.current));
+  }, [registeredDrivers]);
 
   // Carrega os motoristas do banco (mesma fonte da aba Cadastro) e recarrega
   // ao abrir a aba de conferência, para que remover/adicionar reflita aqui.
