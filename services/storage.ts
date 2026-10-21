@@ -203,13 +203,17 @@ export const updateLog = async (log: DailyLog): Promise<void> => {
 const TRASH_COLLECTION = 'lixeira';
 export const TRASH_DAYS = 30;
 export type TrashableCollection = 'logs' | 'abastecimentos';
+// 'servico' e 'despesa' = item removido de dentro de um relatório (pela edição)
+export type TrashKind = TrashableCollection | 'servico' | 'despesa';
 export interface TrashItem {
   id: string;                    // id na lixeira: `${collection}__${originalId}`
-  collection: TrashableCollection;
+  collection: TrashKind;
   originalId: string;
-  data: any;                     // documento original, intacto
+  data: any;                     // documento/item original, intacto
   deletedAt: string;
   deletedBy: string;
+  logId?: string;                // para serviço/despesa: relatório de onde saiu
+  context?: { driverName?: string; date?: string; vehicleId?: string };
 }
 export const trashIdFor = (col: TrashableCollection, id: string) => `${col}__${id}`;
 
@@ -228,6 +232,36 @@ const moveToTrash = async (col: TrashableCollection, id: string, by?: string): P
   await batch.commit();
 };
 
+// Totais do relatório, com as mesmas regras do painel.
+const recomputeTotals = (services: any[], expenses: any[]) => {
+  const n = (v: any) => Number(v) || 0;
+  const totalInvoiced = services.reduce((t, s) => t + n(s.value), 0);
+  const totalExpenses = expenses.reduce((t, e) => t + n(e.value), 0);
+  const totalLiquidTerm = services.filter(s => s.paymentMethod === 'A PRAZO').reduce((t, s) => t + n(s.value), 0);
+  const totalLiquidCash = services.filter(s => s.paymentMethod === 'DINHEIRO' || s.paymentMethod === 'CASH')
+    .reduce((t, s) => t + n(s.value), 0) - totalExpenses;
+  return { totalInvoiced, totalExpenses, totalLiquidTerm, totalLiquidCash };
+};
+
+// Serviços/despesas removidos de um relatório na edição do painel vão para a
+// lixeira, para poderem voltar ao relatório depois.
+export const trashLogItems = async (
+  log: DailyLog, removedServices: any[], removedExpenses: any[], by?: string
+): Promise<void> => {
+  if (removedServices.length === 0 && removedExpenses.length === 0) return;
+  await authReady;
+  const batch = writeBatch(db);
+  const now = new Date().toISOString();
+  const context = { driverName: log.driverName, date: log.date, vehicleId: log.vehicleId };
+  const put = (kind: 'servico' | 'despesa', item: any) =>
+    batch.set(doc(db, TRASH_COLLECTION, `${kind}__${log.id}__${item.id}`), JSON.parse(JSON.stringify({
+      collection: kind, originalId: item.id, logId: log.id, data: item, context, deletedAt: now, deletedBy: by || 'Desconhecido',
+    })));
+  removedServices.forEach(s => put('servico', s));
+  removedExpenses.forEach(e => put('despesa', e));
+  await batch.commit();
+};
+
 export const restoreFromTrash = async (trashId: string): Promise<void> => {
   await authReady;
   const tRef = doc(db, TRASH_COLLECTION, trashId);
@@ -235,6 +269,31 @@ export const restoreFromTrash = async (trashId: string): Promise<void> => {
   try { snap = await getDocFromServer(tRef); } catch { snap = await getDoc(tRef); }
   if (!snap.exists()) throw new Error('Item não está mais na lixeira.');
   const item = snap.data() as TrashItem;
+
+  if (item.collection === 'servico' || item.collection === 'despesa') {
+    const lRef = doc(db, LOGS_COLLECTION, item.logId!);
+    let lSnap;
+    try { lSnap = await getDocFromServer(lRef); } catch { lSnap = await getDoc(lRef); }
+    if (!lSnap.exists()) throw new Error('O relatório deste item não existe mais. Restaure o relatório primeiro.');
+    const log = lSnap.data() as DailyLog;
+    const services = Array.isArray(log.services) ? [...log.services] : [];
+    const expenses = Array.isArray(log.expenses) ? [...log.expenses] : [];
+    const list: any[] = item.collection === 'servico' ? services : expenses;
+    if (!list.some(x => x.id === item.originalId)) list.push(item.data);
+    const label = item.collection === 'servico'
+      ? `serviço ${item.data?.clientName || ''} (${item.data?.paymentMethod || ''} R$ ${Number(item.data?.value || 0).toFixed(2)})`
+      : `despesa ${item.data?.description || ''} (R$ ${Number(item.data?.value || 0).toFixed(2)})`;
+    const editHistory = [...(log.editHistory || []), {
+      editedBy: 'Lixeira', editedAt: new Date().toISOString(), changes: `Restaurado da lixeira: ${label}.`,
+    }];
+    const batch = writeBatch(db);
+    batch.set(lRef, { services, expenses, ...recomputeTotals(services, expenses), editHistory }, { merge: true });
+    batch.delete(tRef);
+    await batch.commit();
+    localStorage.removeItem('sync_time_logs_all');
+    return;
+  }
+
   const batch = writeBatch(db);
   batch.set(doc(db, item.collection, item.originalId), item.data);
   batch.delete(tRef);
