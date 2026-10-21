@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getAllLogs, updateLog, getCurrentUser, deleteLog, fetchDrivers, setLogCheck, getLogById, copyConference, restoreFromTrash, trashIdFor } from '../services/storage';
+import { getAllLogs, updateLog, getCurrentUser, deleteLog, fetchDrivers, setLogCheck, getLogById, copyConference, restoreFromTrash, trashIdFor, trashLogItems } from '../services/storage';
 import { analyzeDailyLogs } from '../services/geminiService';
 import { DailyLog, ServiceItem, ExpenseItem, PaymentMethod, EditHistoryEntry, User } from '../types';
 import { MOCK_DRIVERS, VEHICLES, getLocalDate, getLocalDateFromDate } from '../constants';
@@ -387,10 +387,25 @@ const AdminDashboard: React.FC = () => {
     try {
       // A cópia da tela pode estar desatualizada: mantém a conferência que
       // está no servidor para não desfazer a marcação feita por outra pessoa.
-      copyConference(await getLogById(updatedLog.id), updatedLog);
+      const fresh = await getLogById(updatedLog.id);
+      copyConference(fresh, updatedLog);
+
+      // Serviços/despesas que existiam no servidor e saíram nesta edição.
+      const keepS = new Set((updatedLog.services || []).map(s => s.id));
+      const keepE = new Set((updatedLog.expenses || []).map(e => e.id));
+      const removedServices = (fresh?.services || []).filter(s => !keepS.has(s.id));
+      const removedExpenses = (fresh?.expenses || []).filter(e => !keepE.has(e.id));
+      if (removedServices.length || removedExpenses.length) {
+        const parts = [
+          ...removedServices.map(s => `serviço ${s.clientName || ''} (${s.paymentMethod} R$ ${(Number(s.value) || 0).toFixed(2)})`),
+          ...removedExpenses.map(e => `despesa ${e.description || ''} (R$ ${(Number(e.value) || 0).toFixed(2)})`),
+        ];
+        historyEntry.changes = `Removido (vai para a Lixeira): ${parts.join('; ')}.`;
+      }
 
       // 4. Save
       await updateLog(updatedLog);
+      await trashLogItems(updatedLog, removedServices, removedExpenses, currentUser.name);
       
       // 5. Update Local State
       setLogs(logs.map(l => l.id === updatedLog.id ? updatedLog : l));

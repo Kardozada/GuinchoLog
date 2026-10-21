@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchTrash, restoreFromTrash, TrashItem, TRASH_DAYS } from '../services/storage';
 import { VEHICLES } from '../constants';
-import { Trash2, RotateCcw, Loader2, Droplet, FileText } from 'lucide-react';
+import { Trash2, RotateCcw, Loader2, Droplet, FileText, Wrench, Receipt } from 'lucide-react';
 
 const vehicleName = (id: string) => VEHICLES.find(v => v.id === id)?.name || id || '—';
 const fmtDay = (d: string) => {
@@ -13,6 +13,12 @@ const fmtWhen = (iso: string) =>
 
 const summary = (it: TrashItem) => {
   const d = it.data || {};
+  if (it.collection === 'servico') {
+    return `${d.clientName || '(sem cliente)'} · ${d.towedVehicle || ''} · ${d.paymentMethod || ''} R$ ${Number(d.value || 0).toFixed(2)}${d.startTime ? ` · ${d.startTime}–${d.endTime || ''}` : ''}`;
+  }
+  if (it.collection === 'despesa') {
+    return `${d.description || '(sem descrição)'} · R$ ${Number(d.value || 0).toFixed(2)}`;
+  }
   if (it.collection === 'abastecimentos') {
     return `${Number(d.liters || 0).toLocaleString('pt-BR')} L · R$ ${Number(d.total || 0).toFixed(2)} · ${d.station || ''}`;
   }
@@ -46,7 +52,7 @@ const TrashPanel: React.FC<{ onRestored?: () => void }> = ({ onRestored }) => {
       onRestored?.();
     } catch (e) {
       console.error(e);
-      alert('Não foi possível restaurar. Verifique a conexão e tente de novo.');
+      alert(e instanceof Error && e.message ? e.message : 'Não foi possível restaurar. Verifique a conexão e tente de novo.');
     } finally {
       setBusyId(null);
     }
@@ -59,7 +65,7 @@ const TrashPanel: React.FC<{ onRestored?: () => void }> = ({ onRestored }) => {
           <Trash2 className="w-5 h-5 text-indigo-600" /> Lixeira
         </h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Registros e abastecimentos excluídos ficam aqui por {TRASH_DAYS} dias e podem ser restaurados com um clique.
+          Relatórios, abastecimentos e serviços/despesas removidos de um relatório ficam aqui por {TRASH_DAYS} dias. Restaurar devolve o item ao lugar de onde saiu.
         </p>
       </div>
 
@@ -94,11 +100,15 @@ const TrashPanel: React.FC<{ onRestored?: () => void }> = ({ onRestored }) => {
                     <td className="px-3 py-2 whitespace-nowrap">
                       {it.collection === 'abastecimentos'
                         ? <span className="inline-flex items-center gap-1 text-sky-700"><Droplet className="w-4 h-4" /> Abastecimento</span>
-                        : <span className="inline-flex items-center gap-1 text-indigo-700"><FileText className="w-4 h-4" /> Registro diário</span>}
+                        : it.collection === 'servico'
+                          ? <span className="inline-flex items-center gap-1 text-amber-700"><Wrench className="w-4 h-4" /> Serviço removido</span>
+                          : it.collection === 'despesa'
+                            ? <span className="inline-flex items-center gap-1 text-rose-700"><Receipt className="w-4 h-4" /> Despesa removida</span>
+                            : <span className="inline-flex items-center gap-1 text-indigo-700"><FileText className="w-4 h-4" /> Registro diário</span>}
                     </td>
-                    <td className="px-3 py-2 font-medium text-gray-800">{it.data?.driverName || '—'}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">{fmtDay(it.data?.date)}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">{vehicleName(it.data?.vehicleId)}</td>
+                    <td className="px-3 py-2 font-medium text-gray-800">{it.context?.driverName || it.data?.driverName || '—'}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{fmtDay(it.context?.date || it.data?.date)}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{vehicleName(it.context?.vehicleId || it.data?.vehicleId)}</td>
                     <td className="px-3 py-2 text-gray-600">{summary(it)}</td>
                     <td className="px-3 py-2 whitespace-nowrap text-gray-600">
                       {it.deletedBy}<span className="block text-xs text-gray-400">{fmtWhen(it.deletedAt)}</span>
