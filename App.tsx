@@ -6,6 +6,7 @@ import RefuelForm from './components/RefuelForm';
 import AdminDashboard from './components/AdminDashboard';
 import MechanicPanel from './components/MechanicPanel';
 import DataMigrator from './components/DataMigrator';
+import UpdateBanner from './components/UpdateBanner';
 import { User, UserRole } from './types';
 import { getCurrentUser, setCurrentUser } from './services/storage';
 import { LogOut, LayoutDashboard, FilePlus, Type, Minus, Plus, Droplet } from 'lucide-react';
@@ -99,7 +100,7 @@ const App: React.FC = () => {
   };
 
   if (!user) {
-    return <Login onLogin={handleLogin} />;
+    return <><UpdateBanner /><Login onLogin={handleLogin} /></>;
   }
 
   const getPanelSubtitle = () => {
@@ -112,6 +113,7 @@ const App: React.FC = () => {
     <Router>
        <div className="min-h-screen flex flex-col">
           <DataMigrator />
+          <UpdateBanner />
           {/* Navigation Bar */}
           <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
              <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
