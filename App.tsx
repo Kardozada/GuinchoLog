@@ -7,6 +7,7 @@ import AdminDashboard from './components/AdminDashboard';
 import MechanicPanel from './components/MechanicPanel';
 import DataMigrator from './components/DataMigrator';
 import UpdateBanner from './components/UpdateBanner';
+import { setTrackUser, track } from './services/diagnostics';
 import { User, UserRole } from './types';
 import { getCurrentUser, setCurrentUser } from './services/storage';
 import { LogOut, LayoutDashboard, FilePlus, Type, Minus, Plus, Droplet } from 'lucide-react';
@@ -85,6 +86,33 @@ const App: React.FC = () => {
       setUser(storedUser);
     }
   }, []);
+
+  // Diagnóstico: identifica quem está usando e registra quando o app abre e
+  // quando o motorista sai/volta. Se a página "volta" como recarregada logo após
+  // sair (ex.: abriu a câmera), é sinal de que o celular fechou o app por memória.
+  useEffect(() => {
+    setTrackUser(user ? { id: user.id, name: user.name, role: user.role } : null);
+    if (!user) return;
+    const nav = performance.getEntriesByType?.('navigation')?.[0] as PerformanceNavigationTiming | undefined;
+    const hiddenAt = Number(sessionStorage.getItem('gl_hidden_at') || 0);
+    track('app_aberto', {
+      recarregou: nav?.type === 'reload',
+      ...(hiddenAt ? { segundosFora: Math.round((Date.now() - hiddenAt) / 1000), voltouRecarregado: true } : {}),
+    });
+    sessionStorage.removeItem('gl_hidden_at');
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') {
+        sessionStorage.setItem('gl_hidden_at', String(Date.now()));
+        track('saiu_do_app');
+      } else {
+        const h = Number(sessionStorage.getItem('gl_hidden_at') || 0);
+        sessionStorage.removeItem('gl_hidden_at');
+        track('voltou_ao_app', h ? { segundosFora: Math.round((Date.now() - h) / 1000) } : {});
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [user?.id]);
 
   const handleLogin = (newUser: User) => {
     setUser(newUser);

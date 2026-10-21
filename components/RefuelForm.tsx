@@ -4,11 +4,14 @@ import { VEHICLES, POSTOS, TIPOS_COMBUSTIVEL, getLocalDate } from '../constants'
 import { saveFuelRecord, getFuelRecordsByUser, getFuelRecordsByVehicle, uploadImageDataUrl } from '../services/storage';
 import { Droplet, Calendar, Loader2, CheckCircle, Save, Camera, Image as ImageIcon, X, AlertTriangle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
+import { track, avisar } from '../services/diagnostics';
 
 interface RefuelFormProps {
   user: User;
   onSuccess?: () => void;
 }
+
+const avisarAbs = (m: string) => avisar(m, 'abastecimento');
 
 const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
   const [date, setDate] = useState(getLocalDate());
@@ -78,8 +81,9 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
   const handleImageCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    track('foto_escolhida', { tela: 'abastecimento', origemKb: Math.round(file.size / 1024) });
     if (file.size > 10 * 1024 * 1024) { // 10MB limit
-      alert('A imagem é muito grande. O limite é 10MB.');
+      avisarAbs('A imagem é muito grande. O limite é 10MB.');
       return;
     }
 
@@ -155,23 +159,25 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const t0 = Date.now();
+    track('envio_tocado', { tela: 'abastecimento', veiculo: vehicleId, comFoto: !!proofImage });
     if (!vehicleId || !station || !fuelType || !liters || !pricePerLiter || !odometer || !proofImage) {
-      alert('Por favor, preencha todos os campos obrigatórios, incluindo o odômetro e o comprovante.');
+      avisarAbs('Por favor, preencha todos os campos obrigatórios, incluindo o odômetro e o comprovante.');
       return;
     }
 
     if (tanqueCheio === null) {
-      alert('Por favor, indique se completou o tanque ou foi um abastecimento parcial.');
+      avisarAbs('Por favor, indique se completou o tanque ou foi um abastecimento parcial.');
       return;
     }
 
     if (arlaOn && !arlaValue) {
-      alert('Você marcou ARLA 32 — informe o valor do ARLA (ou desmarque a opção).');
+      avisarAbs('Você marcou ARLA 32 — informe o valor do ARLA (ou desmarque a opção).');
       return;
     }
 
     if (odoBelowLast && !overrideOdo) {
-      alert(`O odômetro (${fmtKm(odoNum!)} km) está menor que o último registrado deste veículo (${fmtKm(lastOdo!)} km). Confira o valor. Se estiver certo mesmo assim, marque a confirmação abaixo do campo.`);
+      avisarAbs(`O odômetro (${fmtKm(odoNum!)} km) está menor que o último registrado deste veículo (${fmtKm(lastOdo!)} km). Confira o valor. Se estiver certo mesmo assim, marque a confirmação abaixo do campo.`);
       return;
     }
 
@@ -205,10 +211,12 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
           record.proofImage = await uploadImageDataUrl(`comprovantes/abastecimentos/${record.id}.jpg`, proofImage);
         } catch (upErr) {
           console.warn('Falha no upload da foto; salvando embutida como fallback.', upErr);
+          track('foto_erro', { tela: 'abastecimento', etapa: 'upload', mensagem: String((upErr as any)?.message || upErr) });
           record.proofImage = proofImage; // fallback: não perde o comprovante
         }
       }
       await saveFuelRecord(record);
+      track('envio_ok', { tela: 'abastecimento', veiculo: vehicleId, ms: Date.now() - t0 });
       await loadRecords();
       resetForm();
       setShowSuccess(true);
@@ -216,6 +224,7 @@ const RefuelForm: React.FC<RefuelFormProps> = ({ user, onSuccess }) => {
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (error) {
       console.error('Erro ao salvar:', error);
+      track('envio_erro', { tela: 'abastecimento', veiculo: vehicleId, ms: Date.now() - t0, mensagem: String((error as any)?.message || error).slice(0, 300) });
       alert('Erro ao salvar abastecimento.');
     } finally {
       setIsSubmitting(false);

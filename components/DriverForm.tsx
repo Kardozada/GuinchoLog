@@ -4,6 +4,7 @@ import { VEHICLES, getLocalDate } from '../constants';
 import { saveLog, getLogsByUser, getLogById, isLogConferred, copyConference, uploadImageDataUrl } from '../services/storage';
 import { Plus, Trash2, Save, Truck, DollarSign, Clock, MapPin, Loader2, CheckCircle, Camera, Image as ImageIcon, X, FileText, Lock } from 'lucide-react';
 import Calendar from './Calendar';
+import { track, avisar } from '../services/diagnostics';
 
 import { v4 as uuidv4 } from 'uuid';
 
@@ -41,6 +42,19 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
   };
   const [expenseValueInputs, setExpenseValueInputs] = useState<Record<string, string>>({});
   const [existingLogId, setExistingLogId] = useState<string | null>(null);
+
+  // --- Rascunho automático -------------------------------------------------
+  // Guarda no próprio celular o que ainda não foi enviado. Se a página fechar
+  // (ex.: o Android encerra o app ao abrir a câmera) ou recarregar, ao voltar o
+  // que foi digitado é recuperado em vez de sumir.
+  const DRAFT_KEY = `guincholog_rascunho_${user.id}`;
+  const [logsLoaded, setLogsLoaded] = useState(false);
+  const draftReadyRef = useRef(false);        // só começa a gravar depois de tentar recuperar
+  const recoveredKeysRef = useRef<Set<string>>(new Set());
+  const [recoveredMsg, setRecoveredMsg] = useState('');
+  const readDraft = (): any => {
+    try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch { return null; }
+  };
 
   useEffect(() => {
     if (isSubmitting) return;
@@ -120,6 +134,7 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
       });
 
       setUserLogs(logs);
+      setLogsLoaded(true);
     };
     loadLogs();
   }, [user.id, user.name, showSuccessModal]);
@@ -157,7 +172,60 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
           setSavedExpenseIds(new Set());
         }
       }
-  }, [date, selectedVehicle, userLogs, existingLogId]);
+      // Recupera o rascunho deste dia+veículo (itens ainda não enviados).
+      if (logsLoaded) {
+        const draft = readDraft();
+        const resolvedVehicle = logToLoad ? logToLoad.vehicleId : selectedVehicle;
+        if (draft && draft.date === date) {
+          if (!logToLoad && selectedVehicle === '' && draft.vehicle) {
+            setSelectedVehicle(draft.vehicle); // o efeito roda de novo já com o veículo do rascunho
+            return;
+          }
+          if (draft.vehicle === resolvedVehicle) {
+            const dS: ServiceItem[] = Array.isArray(draft.services) ? draft.services : [];
+            const dE: ExpenseItem[] = Array.isArray(draft.expenses) ? draft.expenses : [];
+            setServices(prev => [...prev, ...dS.filter(x => !prev.some(p => p.id === x.id))]);
+            setExpenses(prev => [...prev, ...dE.filter(x => !prev.some(p => p.id === x.id))]);
+            const key = `${date}|${resolvedVehicle}`;
+            if ((dS.length || dE.length) && !recoveredKeysRef.current.has(key)) {
+              recoveredKeysRef.current.add(key);
+              const partes = [
+                dS.length ? `${dS.length} serviço${dS.length > 1 ? 's' : ''}` : '',
+                dE.length ? `${dE.length} despesa${dE.length > 1 ? 's' : ''}` : '',
+              ].filter(Boolean).join(' e ');
+              setRecoveredMsg(`Recuperamos ${partes} que você ainda não tinha enviado.` +
+                (draft.photosDropped ? ' Confira as fotos dos comprovantes: pode ser preciso anexar de novo.' : ' Confira e toque em enviar.'));
+              track('rascunho_recuperado', { servicos: dS.length, despesas: dE.length, fotosPerdidas: !!draft.photosDropped, dia: date });
+            }
+          }
+        }
+        draftReadyRef.current = true;
+      }
+  }, [date, selectedVehicle, userLogs, existingLogId, logsLoaded]);
+
+  // Grava o rascunho a cada alteração (só os itens ainda não enviados).
+  useEffect(() => {
+    if (!draftReadyRef.current) return;
+    const filled = (sv: ServiceItem) => !!(sv.clientName || sv.departure || sv.destination || sv.towedVehicle ||
+      sv.towedPlate || sv.startTime || sv.endTime || sv.proofImage || Number(sv.value));
+    const newS = services.filter(sv => !savedServiceIds.has(sv.id) && filled(sv));
+    const newE = expenses.filter(ex => !savedExpenseIds.has(ex.id) && ((ex.description || '').trim() || Number(ex.value)));
+    try {
+      if (!newS.length && !newE.length) { localStorage.removeItem(DRAFT_KEY); return; }
+      const base = { date, vehicle: selectedVehicle, savedAt: new Date().toISOString() };
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...base, services: newS, expenses: newE }));
+      } catch {
+        // Sem espaço para as fotos: guarda o resto e avisa para anexar de novo.
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({
+          ...base, photosDropped: true, expenses: newE,
+          services: newS.map(sv => ({ ...sv, proofImage: undefined })),
+        }));
+      }
+    } catch {
+      /* armazenamento indisponível: segue sem rascunho */
+    }
+  }, [services, expenses, date, selectedVehicle, savedServiceIds, savedExpenseIds]);
 
   // Dia já conferido (carimbo do Hudson ou check do André) fica somente leitura
   // para o motorista. Só o administrativo (Hudson, André, admin) pode alterar.
@@ -236,7 +304,7 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
     try {
       if (file.type === 'application/pdf') {
         if (file.size > 2 * 1024 * 1024) { // 2MB limit for PDF
-           alert("PDF muito grande (máximo 2MB).");
+           avisar("PDF muito grande (máximo 2MB).", "registro");
            return;
         }
         const reader = new FileReader();
@@ -246,9 +314,12 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
         };
         return;
       }
+      const t0 = Date.now();
       const base64 = await compressImage(file);
       setServices(services.map(s => s.id === id ? { ...s, proofImage: base64 } : s));
+      track('foto_anexada', { tela: 'registro', kb: Math.round(base64.length * 0.75 / 1024), ms: Date.now() - t0, origemKb: Math.round(file.size / 1024) });
     } catch (error) {
+      track('foto_erro', { tela: 'registro', etapa: 'processar', mensagem: String((error as any)?.message || error) });
       alert("Erro ao processar o arquivo. Tente novamente.");
     }
   };
@@ -258,6 +329,7 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
   };
 
   const addServiceRow = () => {
+    track('servico_adicionado', { dia: date, veiculo: selectedVehicle });
     setServices([
       ...services,
       {
@@ -312,19 +384,26 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
   };
 
   const addExpenseRow = () => {
+    track('despesa_adicionada', { dia: date, veiculo: selectedVehicle });
     setExpenses([...expenses, { id: generateId(), description: '', value: 0 }]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const t0 = Date.now();
+    track('envio_tocado', {
+      tela: 'registro', dia: date, veiculo: selectedVehicle,
+      servicos: services.length, novosServicos: services.filter(x => !savedServiceIds.has(x.id)).length,
+      despesas: expenses.length, comFoto: services.filter(x => x.proofImage).length,
+    });
 
     if (isLocked) {
-      alert("Este dia já foi conferido e não pode mais ser alterado. Se precisar corrigir algo, fale com o administrativo.");
+      avisar("Este dia já foi conferido e não pode mais ser alterado. Se precisar corrigir algo, fale com o administrativo.", 'registro');
       return;
     }
 
     if (!selectedVehicle) {
-      alert("Por favor, selecione um veículo.");
+      avisar("Por favor, selecione um veículo.", 'registro');
       return;
     }
 
@@ -336,7 +415,7 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
     });
 
     if (hasInvalidValue) {
-      alert("Para pagamentos à vista, o valor do serviço é obrigatório.");
+      avisar("Para pagamentos à vista, o valor do serviço é obrigatório.", 'registro');
       return;
     }
 
@@ -347,7 +426,7 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
     });
 
     if (hasMissingProof) {
-      alert("Para pagamentos À VISTA (Dinheiro, Pix, Cartão), é obrigatório anexar a foto do valor/comprovante.");
+      avisar("Para pagamentos À VISTA (Dinheiro, Pix, Cartão), é obrigatório anexar a foto do valor/comprovante.", 'registro');
       return;
     }
 
@@ -378,7 +457,7 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
       if (existingLogId) {
         const fresh = await getLogById(existingLogId);
         if (isLogConferred(fresh)) {
-          alert("Este dia acabou de ser conferido pelo administrativo e não pode mais ser alterado. Se precisar corrigir algo, fale com eles.");
+          avisar("Este dia acabou de ser conferido pelo administrativo e não pode mais ser alterado. Se precisar corrigir algo, fale com eles.", 'registro');
           setIsSubmitting(false);
           return;
         }
@@ -407,6 +486,7 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
               return { ...s, proofImage: url };
             } catch (upErr) {
               console.warn('Falha no upload da foto do serviço; mantendo embutida.', upErr);
+              track('foto_erro', { tela: 'registro', etapa: 'upload', mensagem: String((upErr as any)?.message || upErr) });
               return s;
             }
           }
@@ -418,10 +498,14 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
       await saveLog(log);
 
       draftRef.current = { key: '', id: generateId() }; // próximo relatório novo usa outro id
+      try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignora */ }
+      setRecoveredMsg('');
+      track('envio_ok', { tela: 'registro', dia: date, servicos: log.services.length, despesas: log.expenses.length, ms: Date.now() - t0 });
       setIsSubmitting(false);
       setShowSuccessModal(true);
     } catch (error) {
       console.error("Erro ao salvar log:", error);
+      track('envio_erro', { tela: 'registro', dia: date, ms: Date.now() - t0, mensagem: String((error as any)?.message || error).slice(0, 300) });
       alert("Ocorreu um erro ao salvar o relatório. Por favor, tente novamente.");
       setIsSubmitting(false);
     }
@@ -490,6 +574,14 @@ const DriverForm: React.FC<DriverFormProps> = ({ user, onSuccess }) => {
             </select>
           </div>
         </div>
+
+        {recoveredMsg && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-sky-300 bg-sky-50 p-4 text-sky-900">
+            <CheckCircle className="w-5 h-5 mt-0.5 shrink-0" />
+            <p className="text-sm flex-1"><span className="font-bold">Rascunho recuperado.</span> {recoveredMsg}</p>
+            <button type="button" onClick={() => setRecoveredMsg('')} className="text-sky-700 hover:text-sky-900"><X className="w-4 h-4" /></button>
+          </div>
+        )}
 
         {isLocked && (
           <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900">
