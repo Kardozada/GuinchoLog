@@ -174,25 +174,58 @@ export const copyConference = (from: Partial<DailyLog> | null, to: DailyLog): Da
 // registra quem fez e quando. Antes o painel regravava o registro inteiro a
 // partir da cópia da tela — se estivesse desatualizada, o check do André
 // apagava o carimbo do Hudson (e vice-versa).
+// Histórico permanente de cada clique nos quadrados de conferência
+// (quem marcou/desmarcou, quando e em qual registro). Nunca é apagado.
+export const MARKS_COLLECTION = 'marcacoes';
+export interface MarkEvent {
+  id: string;
+  logId: string;
+  campo: 'checkedHudson' | 'checkedAndre';
+  valor: boolean;
+  por: string;
+  at: string;
+  driverName?: string;
+  date?: string;
+  vehicleId?: string;
+  importado?: boolean; // reconstruído do último carimbo, antes de existir o histórico
+}
+
 export const setLogCheck = async (
   logId: string,
   field: 'checkedHudson' | 'checkedAndre',
   value: boolean,
-  by: string
+  by: string,
+  info: { driverName?: string; date?: string; vehicleId?: string } = {}
 ): Promise<void> => {
   const path = `${LOGS_COLLECTION}/${logId}`;
   try {
     await authReady;
+    const at = new Date().toISOString();
     const patch: Record<string, unknown> = {
       [field]: value,
       [`${field}By`]: by,
-      [`${field}At`]: new Date().toISOString(),
+      [`${field}At`]: at,
     };
     if (field === 'checkedAndre') patch.checked = value; // campo legado
-    await setDoc(doc(db, LOGS_COLLECTION, logId), patch, { merge: true });
+    const mark: Omit<MarkEvent, 'id'> = JSON.parse(JSON.stringify({ logId, campo: field, valor: value, por: by, at, ...info }));
+    const batch = writeBatch(db);
+    batch.set(doc(db, LOGS_COLLECTION, logId), patch, { merge: true });
+    batch.set(doc(db, MARKS_COLLECTION, `${at}_${field}_${logId}`), mark);
+    await batch.commit();
   } catch (e) {
     handleFirestoreError(e, OperationType.WRITE, path);
   }
+};
+
+// Marcações feitas num dia (fuso do aparelho).
+export const fetchMarks = async (dia: string): Promise<MarkEvent[]> => {
+  await authReady;
+  const start = new Date(`${dia}T00:00:00`).toISOString();
+  const end = new Date(new Date(`${dia}T00:00:00`).getTime() + 86400000).toISOString();
+  const snap = await getDocsFromServer(query(collection(db, MARKS_COLLECTION), where('at', '>=', start), where('at', '<', end)));
+  const out: MarkEvent[] = [];
+  snap.forEach(d => out.push({ id: d.id, ...(d.data() as Omit<MarkEvent, 'id'>) }));
+  return out;
 };
 
 export const updateLog = async (log: DailyLog): Promise<void> => {

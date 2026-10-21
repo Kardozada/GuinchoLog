@@ -11,6 +11,7 @@ import DriverManagement from './DriverManagement';
 import ReviewPanel from './ReviewPanel';
 import TrashPanel from './TrashPanel';
 import ActivityPanel from './ActivityPanel';
+import MarksPanel from './MarksPanel';
 import AdminMaintenance from './AdminMaintenance';
 
 // --- GAS SCRIPT ATUALIZADO (Suporte a Update/Upsert) ---
@@ -106,7 +107,7 @@ function setup() {
   }
 }`;
 
-type TabView = 'overview' | 'dates' | 'drivers' | 'cash' | 'refuel' | 'maintenance' | 'register' | 'review' | 'trash' | 'activity';
+type TabView = 'overview' | 'dates' | 'drivers' | 'cash' | 'refuel' | 'maintenance' | 'register' | 'review' | 'trash' | 'activity' | 'marks';
 
 const AdminDashboard: React.FC = () => {
   const [logs, setLogs] = useState<DailyLog[]>([]);
@@ -486,7 +487,10 @@ const AdminDashboard: React.FC = () => {
     // 2. Persistência em segundo plano — grava SÓ o campo desta conferência.
     // (Regravar o registro inteiro a partir da cópia da tela apagava a marcação
     // feita pela outra pessoa quando a tela estava desatualizada.)
-    Promise.all(logIds.map(id => setLogCheck(id, field, targetValue, by)))
+    Promise.all(logIds.map(id => {
+      const l = logs.find(x => x.id === id);
+      return setLogCheck(id, field, targetValue, by, { driverName: l?.driverName, date: l?.date, vehicleId: l?.vehicleId });
+    }))
       .catch(err => {
         console.error(`Erro ao sincronizar estado de check (${field}):`, err);
       });
@@ -1450,6 +1454,13 @@ const AdminDashboard: React.FC = () => {
             <Activity className="w-4 h-4" />
             Atividade
           </button>
+          <button
+            onClick={() => setActiveTab('marks')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'marks' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            <CheckSquare className="w-4 h-4" />
+            Marcações
+          </button>
        </div>
 
        {/* Content */}
@@ -1464,6 +1475,7 @@ const AdminDashboard: React.FC = () => {
           {activeTab === 'review' && <ReviewPanel onGoTo={handleReviewGoTo} />}
           {activeTab === 'trash' && <TrashPanel onRestored={loadData} />}
           {activeTab === 'activity' && <ActivityPanel />}
+          {activeTab === 'marks' && <MarksPanel logs={logs} />}
        </div>
 
        {/* Modals */}
