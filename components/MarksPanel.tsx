@@ -7,7 +7,7 @@ import { CheckSquare, Loader2, RefreshCw, Square, Stamp } from 'lucide-react';
 type Who = '' | 'checkedAndre' | 'checkedHudson';
 const QUEM: Record<MarkEvent['campo'], string> = { checkedAndre: 'Check (André)', checkedHudson: 'Carimbo (Hudson)' };
 const vName = (id?: string) => (id ? VEHICLES.find(v => v.id === id)?.name || id : '');
-const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const quando = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 const diaBR = (d?: string) => (d ? new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR') : '');
 
 // Histórico de cada clique nos quadrados de conferência (check de André e
@@ -81,7 +81,7 @@ const MarksPanel: React.FC<{ logs: DailyLog[] }> = ({ logs }) => {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-600 text-xs uppercase">
               <tr>
-                <th className="text-left px-3 py-2">Hora</th>
+                <th className="text-left px-3 py-2">Marcado em (dia e hora)</th>
                 <th className="text-left px-3 py-2">Quem clicou</th>
                 <th className="text-left px-3 py-2">Ação</th>
                 <th className="text-left px-3 py-2">Motorista</th>
@@ -92,7 +92,7 @@ const MarksPanel: React.FC<{ logs: DailyLog[] }> = ({ logs }) => {
             <tbody className="divide-y divide-gray-100">
               {rows.map(m => (
                 <tr key={m.id} className={m.valor ? '' : 'bg-red-50/60'}>
-                  <td className="px-3 py-2 tabular-nums whitespace-nowrap">{hora(m.at)}</td>
+                  <td className="px-3 py-2 tabular-nums whitespace-nowrap">{quando(m.at)}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{m.por}</td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     <span className={`inline-flex items-center gap-1 font-medium ${m.valor ? (m.campo === 'checkedAndre' ? 'text-blue-700' : 'text-gray-800') : 'text-red-700'}`}>
