@@ -848,9 +848,9 @@ const AdminDashboard: React.FC = () => {
                                 {Object.values(r.itens).length === 0 ? (
                                   <p className="text-xs text-gray-500">Sem despesas lançadas no mês.</p>
                                 ) : (
-                                  <ul className="text-xs text-gray-700 space-y-0.5">
+                                  <ul className="text-xs text-gray-800 rounded-md overflow-hidden border border-gray-200">
                                     {Object.values(r.itens).sort((a, b) => b.total - a.total).map(it => (
-                                      <li key={it.desc} className="flex justify-between gap-4">
+                                      <li key={it.desc} className="flex justify-between gap-4 px-3 py-1.5 odd:bg-white even:bg-slate-100">
                                         <span className="truncate">{it.desc} <span className="text-gray-400">({it.qtd}x)</span></span>
                                         <span className="tabular-nums">{brl(it.total)}</span>
                                       </li>
