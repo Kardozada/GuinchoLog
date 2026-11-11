@@ -3,7 +3,6 @@ import { getAllLogs, subscribeLogs, updateLog, getCurrentUser, deleteLog, fetchD
 import { analyzeDailyLogs } from '../services/geminiService';
 import { DailyLog, ServiceItem, ExpenseItem, PaymentMethod, EditHistoryEntry, User } from '../types';
 import { MOCK_DRIVERS, VEHICLES, getLocalDate, getLocalDateFromDate } from '../constants';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Bot, FileText, Search, TrendingUp, RefreshCw, AlertTriangle, X, Copy, Check, Settings, Calendar, Users, ChevronDown, ChevronRight, MapPin, Clock, Truck, DollarSign, Image as ImageIcon, LayoutDashboard, Pencil, History, Save, Trash2, Plus, Square, CheckSquare, Stamp, Droplet, Wrench, User as UserIcon, Minus, RotateCcw, Activity } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import AdminRefuel from './AdminRefuel';
@@ -122,6 +121,8 @@ const AdminDashboard: React.FC = () => {
   // Navigation State
   const [activeTab, setActiveTab] = useState<TabView>('overview');
   const [cashTabMonth, setCashTabMonth] = useState(getLocalDate().slice(0, 7)); // "YYYY-MM"
+  const [expenseMonth, setExpenseMonth] = useState(getLocalDate().slice(0, 7)); // Visão geral: despesas do mês
+  const [openExpenseDriver, setOpenExpenseDriver] = useState<string | null>(null);
   
   // Date Navigation State
   const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set());
@@ -751,13 +752,29 @@ const AdminDashboard: React.FC = () => {
     const totalServices = logs.reduce((acc, l) => acc + (Array.isArray(l.services) ? l.services.length : 0), 0);
     const activeDrivers = new Set(logs.map(l => l.userId)).size;
     
-    // Chart Data
-    const revenueByDriver = logs.reduce((acc, log) => {
-      const existing = acc.find(a => a.name === log.driverName);
-      if (existing) existing.value += log.totalInvoiced;
-      else acc.push({ name: log.driverName, value: log.totalInvoiced });
-      return acc;
-    }, [] as { name: string; value: number }[]).sort((a,b) => b.value - a.value).slice(0, 10); // Top 10
+    // Despesas do mês por motorista
+    const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const monthLogs = logs.filter(l => typeof l.date === 'string' && l.date.startsWith(expenseMonth));
+    type ExpenseRow = { key: string; name: string; dias: Set<string>; qtd: number; total: number; faturado: number; itens: Record<string, { desc: string; qtd: number; total: number }> };
+    const rowsByDriver: Record<string, ExpenseRow> = {};
+    monthLogs.forEach(log => {
+      const key = log.userId || log.driverName;
+      const row = rowsByDriver[key] || (rowsByDriver[key] = { key, name: log.driverName, dias: new Set<string>(), qtd: 0, total: 0, faturado: 0, itens: {} });
+      row.dias.add(log.date);
+      row.faturado += log.totalInvoiced || 0;
+      (Array.isArray(log.expenses) ? log.expenses : []).forEach(e => {
+        const v = Number(e.value) || 0;
+        if (!v && !e.description) return;
+        row.qtd++; row.total += v;
+        const desc = (e.description || 'Sem descrição').trim();
+        const k = desc.toLowerCase();
+        const it = row.itens[k] || (row.itens[k] = { desc, qtd: 0, total: 0 });
+        it.qtd++; it.total += v;
+      });
+    });
+    const expenseRows: ExpenseRow[] = Object.values(rowsByDriver).sort((a, b) => b.total - a.total);
+    const monthExpenseTotal = expenseRows.reduce((acc, r) => acc + r.total, 0);
+    const maxExpense = Math.max(1, ...expenseRows.map(r => r.total));
 
     const totalLiquidCompany = logs.reduce((acc, log) => acc + log.totalInvoiced - log.totalExpenses, 0);
 
@@ -778,20 +795,85 @@ const AdminDashboard: React.FC = () => {
         {/* Charts & AI */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-gray-500"/> Top 10 Faturamento
-            </h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={revenueByDriver}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" tick={{fontSize: 10}} interval={0} />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="value" fill="#4f46e5" name="Faturamento (R$)" />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-red-500"/> Despesas do mês por motorista
+              </h3>
+              <div className="bg-gray-100 p-2 rounded-lg flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-gray-500" />
+                <input type="month" value={expenseMonth} onChange={e => { setExpenseMonth(e.target.value); setOpenExpenseDriver(null); }}
+                  className="bg-transparent border-none outline-none text-sm font-medium text-gray-700" />
+              </div>
             </div>
+            {expenseRows.length === 0 ? (
+              <div className="p-8 text-center text-gray-500 text-sm">Nenhum registro em {formatMonth(expenseMonth).toLowerCase()}.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-xs uppercase text-gray-500 border-b border-gray-200">
+                    <tr>
+                      <th className="text-left py-2 pr-2">Motorista</th>
+                      <th className="text-right py-2 px-2">Dias</th>
+                      <th className="text-right py-2 px-2">Lançamentos</th>
+                      <th className="text-right py-2 px-2">Média/dia</th>
+                      <th className="text-right py-2 px-2" title="Despesas sobre o faturamento do motorista no mês">% do fatur.</th>
+                      <th className="text-right py-2 pl-2">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {expenseRows.map(r => {
+                      const open = openExpenseDriver === r.key;
+                      const pct = r.faturado > 0 ? (r.total / r.faturado) * 100 : null;
+                      return (
+                        <React.Fragment key={r.key}>
+                          <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => setOpenExpenseDriver(open ? null : r.key)}>
+                            <td className="py-2 pr-2">
+                              <div className="flex items-center gap-1 font-medium text-gray-800">
+                                {open ? <ChevronDown className="w-4 h-4 text-gray-400 shrink-0"/> : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0"/>}
+                                <span className="truncate">{r.name}</span>
+                              </div>
+                              <div className="ml-5 mt-1 h-1.5 bg-gray-100 rounded">
+                                <div className="h-1.5 bg-red-400 rounded" style={{ width: `${(r.total / maxExpense) * 100}%` }} />
+                              </div>
+                            </td>
+                            <td className="text-right py-2 px-2 tabular-nums">{r.dias.size}</td>
+                            <td className="text-right py-2 px-2 tabular-nums">{r.qtd}</td>
+                            <td className="text-right py-2 px-2 tabular-nums">{brl(r.total / Math.max(1, r.dias.size))}</td>
+                            <td className="text-right py-2 px-2 tabular-nums">{pct == null ? '—' : `${pct.toFixed(0)}%`}</td>
+                            <td className="text-right py-2 pl-2 tabular-nums font-semibold text-red-600">{brl(r.total)}</td>
+                          </tr>
+                          {open && (
+                            <tr className="bg-gray-50">
+                              <td colSpan={6} className="px-6 py-2">
+                                {Object.values(r.itens).length === 0 ? (
+                                  <p className="text-xs text-gray-500">Sem despesas lançadas no mês.</p>
+                                ) : (
+                                  <ul className="text-xs text-gray-700 space-y-0.5">
+                                    {Object.values(r.itens).sort((a, b) => b.total - a.total).map(it => (
+                                      <li key={it.desc} className="flex justify-between gap-4">
+                                        <span className="truncate">{it.desc} <span className="text-gray-400">({it.qtd}x)</span></span>
+                                        <span className="tabular-nums">{brl(it.total)}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot className="border-t-2 border-gray-200 font-semibold">
+                    <tr>
+                      <td className="py-2 pr-2">Total do mês</td>
+                      <td colSpan={4}></td>
+                      <td className="text-right py-2 pl-2 tabular-nums text-red-700">{brl(monthExpenseTotal)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* AI Analysis Section */}
